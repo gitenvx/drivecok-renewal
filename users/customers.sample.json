@@ -1,0 +1,11 @@
+{
+  "2026-06-01": [
+    {
+      "id": "1088745594",
+      "username": "contoh_user",
+      "name": "Contoh Customer",
+      "plan": "Group",
+      "email": "customer@example.com"
+    }
+  ]
+}

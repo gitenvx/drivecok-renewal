@@ -1,0 +1,15 @@
+{
+  "name": "mongodb-renewal-tools",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "import:preview": "node scripts/import-customers.mjs users/customers.sample.json",
+    "import:write": "node scripts/import-customers.mjs --write"
+  },
+  "dependencies": {
+    "dotenv": "^17.4.2",
+    "input": "^1.0.1",
+    "mongodb": "^6.21.0"
+  }
+}
