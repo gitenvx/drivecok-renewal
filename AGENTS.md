@@ -106,3 +106,5 @@ drivecok-renewal/
 2. **Stay in project root.** All commands run from `drivecok-renewal/`.
 3. **Only ask confirmation** if parameters are truly ambiguous (e.g. plan unclear when adding user).
 4. **OS awareness:** Always use `venv/bin/python3`, not Windows paths.
+5. **🚨 NO auto-push to GitHub.** Stage & commit only. Ucok must review and push himself.
+6. **🚨 Always ask before creating new files.** Don't create new scripts or files without Ucok's approval.
