@@ -43,7 +43,8 @@ export function loadMongoEnv() {
     TELEGRAM_STRING_SESSION: process.env.TELEGRAM_STRING_SESSION || null,
     TELEGRAM_MFA: process.env.TELEGRAM_MFA || null,
     TELEGRAM_NUMBER: process.env.TELEGRAM_NUMBER || null,
-    TELEGRAM_GRAMJS_SESSION: process.env.TELEGRAM_GRAMJS_SESSION || null
+    TELEGRAM_GRAMJS_SESSION: process.env.TELEGRAM_GRAMJS_SESSION || null,
+    OWNER_ID: process.env.OWNER_ID || null
   };
 }
 

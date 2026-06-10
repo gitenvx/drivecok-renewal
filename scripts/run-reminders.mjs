@@ -1,12 +1,15 @@
 import { loadMongoEnv } from './env.mjs';
+import { setDefaultResultOrder } from 'dns';
+setDefaultResultOrder('ipv4first');
 
 const env = loadMongoEnv();
-const BOT_TOKEN = env.BOT_TOKEN;
-const GROUP_CHAT_IDS = String(env.groupChatId || '').split(/\s+/).filter(Boolean);
+const BOT_TOKEN = ***
+const OWNER_ID = env.OWNER_ID;
 const MONGO_URI = env.uri;
 const DB_NAME = env.dbName;
 const COLLECTION = env.collectionName;
 const TELEGRAM_API = BOT_TOKEN ? `https://api.telegram.org/bot${BOT_TOKEN}` : null;
+const GROUP_CHAT_IDS = String(env.groupChatId || '').split(/\s+/).filter(Boolean);
 const TIMEZONE = 'Asia/Makassar';
 const MAX_REMINDERS_PER_DAY = 3;
 const CONFIG_COLLECTION = 'cron_config';
@@ -22,6 +25,25 @@ function getLocalToday() {
 
 function delay(ms) {
   return new Promise(r => setTimeout(r, ms));
+}
+
+async function sendToAll(text) {
+  if (!TELEGRAM_API) return;
+  const targets = [...GROUP_CHAT_IDS];
+  if (OWNER_ID && !targets.includes(OWNER_ID)) targets.push(OWNER_ID);
+  
+  for (const chatId of targets) {
+    try {
+      await fetch(`${TELEGRAM_API}/sendMessage`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ chat_id: String(chatId), text, parse_mode: 'HTML', disable_web_page_preview: true })
+      });
+    } catch (e) {
+      console.error(`sendToAll ${chatId}: ${e.message}`);
+    }
+    await delay(5000);
+  }
 }
 
 async function sendTelegramMessage(chatId, text) {
@@ -54,28 +76,20 @@ async function sendTelegramMessage(chatId, text) {
       if (data.ok) return data;
       
       if (data.error_code === 400 || data.error_code === 403 || data.error_code === 404) {
-        console.log(`  ⏳ [${attempt}/${MAX_RETRIES}] sendMessage — ${data.description}`);
         if (attempt < MAX_RETRIES) {
-          const w = Math.min(1000 * Math.pow(2, attempt - 1), 5000);
-          console.log(`    Retry in ${w}ms...`);
-          await delay(w);
+          await delay(Math.min(1000 * Math.pow(2, attempt - 1), 5000));
           continue;
         }
         return data;
       }
       
       if (attempt < MAX_RETRIES) {
-        const w = Math.min(1000 * Math.pow(2, attempt - 1), 5000);
-        console.log(`  ⏳ [${attempt}/${MAX_RETRIES}] sendMessage — ${data.description || 'unknown'}, retry in ${w}ms...`);
-        await delay(w);
+        await delay(Math.min(1000 * Math.pow(2, attempt - 1), 5000));
       }
     } catch (err) {
       if (attempt < MAX_RETRIES) {
-        const w = Math.min(1000 * Math.pow(2, attempt - 1), 5000);
-        console.log(`  ⏳ [${attempt}/${MAX_RETRIES}] sendMessage — ${err.message}, retry in ${w}ms...`);
-        await delay(w);
+        await delay(Math.min(1000 * Math.pow(2, attempt - 1), 5000));
       } else {
-        console.error(`  ❌ All ${MAX_RETRIES} attempts failed for chat ${chatId}: ${err.message}`);
         return { ok: false, error: err.message };
       }
     }
@@ -95,13 +109,9 @@ function buildReminderMessage(customers, today) {
     const uid = c.telegram_user_id;
     const plan = c.plan || '—';
     
-    // Tap-to-copy ID
     const idCode = uid ? `(<code>${uid}</code>)` : '';
     
-    // Prioritaskan username sebagai label link, kalau kosong pakai nama
     let userLabel = c.username ? (c.username.startsWith('@') ? c.username : `@${c.username}`) : name;
-    
-    // Pakai tg://user?id biar kebal walau usernamenya diganti
     const mentionLink = uid ? `<a href="tg://user?id=${uid}">${userLabel}</a>` : userLabel;
     
     const ov = c.days_overdue;
@@ -120,12 +130,17 @@ function buildReminderMessage(customers, today) {
 }
 
 async function run() {
+  const today = getLocalToday();
+
   if (!BOT_TOKEN || !MONGO_URI) {
-    console.error('FATAL: BOT_TOKEN atau MONGODB_URI tidak dikonfigurasi.');
+    await sendToAll(`[${today}] 💥 FATAL: BOT_TOKEN atau MONGODB_URI tidak dikonfigurasi.`);
     return;
   }
-  
-  const today = getLocalToday();
+  if (!OWNER_ID) {
+    console.error('OWNER_ID tidak dikonfigurasi di .env.');
+    return;
+  }
+
   const { MongoClient } = await import('mongodb');
   const client = new MongoClient(MONGO_URI);
   
@@ -134,7 +149,10 @@ async function run() {
     const db = client.db(DB_NAME);
     const customers = db.collection(COLLECTION);
     const cfg = db.collection(CONFIG_COLLECTION);
-    
+
+    await sendToAll(`[${today}] ⏰ Cron reminder jalan — ngecek pelanggan expired...`);
+
+    // --- Reset counter harian ---
     const lastReset = await cfg.findOne({ _id: 'reminder_counter_reset_date' });
     if (!lastReset || lastReset.date !== today) {
       const r = await customers.updateMany(
@@ -146,30 +164,34 @@ async function run() {
         { $set: { date: today, last_reset_at: new Date().toISOString() } },
         { upsert: true }
       );
-      console.log(`  Counter reset untuk ${r.modifiedCount} pelanggan (hari baru: ${today})`);
+      await sendToAll(`[${today}] ✅ Counter reminder direset — ${r.modifiedCount} pelanggan`);
     } else {
-      console.log(`  Counter sudah direset hari ini (${today}).`);
+      await sendToAll(`[${today}] ℹ️  Counter sudah direset hari ini.`);
     }
 
+    // --- Cari pelanggan expired yg perlu reminder ---
     const pending = await customers.find({
       expire_date: { $lte: today },
       status: 'active',
       'billing.reminder_enabled': true,
       'billing.reminder_count_today': { $lt: MAX_REMINDERS_PER_DAY }
     }).toArray();
-    
+
     if (!pending.length) {
-      console.log(`[${today}] No pending reminders.`);
+      await sendToAll(`[${today}] ✅ Tidak ada pelanggan expired yang perlu diingatkan.`);
       return;
     }
 
+    await sendToAll(`[${today}] 📋 ${pending.length} pelanggan expired ditemukan — menyiapkan data...`);
+
+    // --- Update counter & kumpulin data ---
     const nowISO = new Date().toISOString();
     const data = [];
-    
+
     for (const doc of pending) {
       const nc = (doc.billing?.reminder_count_today ?? 0) + 1;
       const nt = (doc.billing?.reminder_total ?? 0) + 1;
-      
+
       await customers.updateOne(
         { _id: doc._id },
         { 
@@ -180,7 +202,7 @@ async function run() {
           } 
         }
       );
-      
+
       const ed = doc.expire_date;
       const dv = Math.floor((new Date(today + 'T00:00:00').getTime() - new Date(ed + 'T00:00:00').getTime()) / 86400000);
       data.push({ 
@@ -191,26 +213,32 @@ async function run() {
         expire_date: ed, 
         days_overdue: dv 
       });
+
+      const nameLabel = doc.name || '(No Name)';
+      const userLabel = doc.username ? `@${doc.username.replace('@','')}` : nameLabel;
+      const overdueText = dv === 0 ? 'hari ini' : `${dv} hari lewat`;
+      await sendToAll(`[${today}]   🔔 ${userLabel} (${doc.telegram_user_id}) — ${overdueText}, plan ${doc.plan} (pengingat ke-${nc}/${MAX_REMINDERS_PER_DAY})`);
     }
-    
-    if (!GROUP_CHAT_IDS.length) {
-      console.log('No group chat IDs in env.');
-      return;
-    }
-    
+
+    // Kirim recap reminder ke grup & DM
     const msg = buildReminderMessage(data, today);
-    console.log(`[${today}] Pending: ${data.length} pelanggan, Groups: ${GROUP_CHAT_IDS.join(', ')}`);
-    
     for (const gid of GROUP_CHAT_IDS) {
       const r = await sendTelegramMessage(gid, msg);
-      console.log(`  ${gid}: ${r.ok ? 'OK' : 'FAIL'}${r.ok ? '' : ' - ' + JSON.stringify(r)}`);
+      await sendToAll(`  ${gid}: ${r.ok ? 'OK' : 'FAIL'}${r.ok ? '' : ' - ' + JSON.stringify(r)}`);
     }
+    const r2 = await sendTelegramMessage(OWNER_ID, msg);
+    await sendToAll(`[${today}] ✅ Reminder ke OWNER (${OWNER_ID}): ${r2.ok ? 'OK' : 'FAIL - ' + JSON.stringify(r2)}`);
+
+  } catch (err) {
+    await sendToAll(`[${today}] 💥 ERROR: ${err.message}`);
   } finally {
     await client.close();
+    await sendToAll(`[${today}] 🔚 Selesai.`);
   }
 }
 
-run().catch(err => {
-  console.error('FATAL:', err.message);
+run().catch(async err => {
+  const today = getLocalToday();
+  await sendToAll(`[${today}] 💥 FATAL: ${err.message}`);
   process.exit(1);
 });
