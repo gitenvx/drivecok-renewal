@@ -91,7 +91,6 @@ drivecok-renewal/
 ## Related Docs
 
 - `README.md` — full user guide
-- `CLAUDE.md` — Claude Code commands & rules
 - `USER.md` — operator profile (Ucok)
 - `IDENTITY.md` — AI assistant identity
 
