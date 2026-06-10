@@ -1,14 +1,15 @@
 import { loadMongoEnv } from './env.mjs';
-import { setDefaultResultOrder } from 'dns';
-setDefaultResultOrder('ipv4first');
 
 const env = loadMongoEnv();
-const BOT_TOKEN = ***
+const BOT_TOKEN = env.BOT_TOKEN
 const OWNER_ID = env.OWNER_ID;
 const MONGO_URI = env.uri;
 const DB_NAME = env.dbName;
 const COLLECTION = env.collectionName;
 const TELEGRAM_API = BOT_TOKEN ? `https://api.telegram.org/bot${BOT_TOKEN}` : null;
+
+import { setDefaultResultOrder } from 'dns';
+setDefaultResultOrder('ipv4first');
 const GROUP_CHAT_IDS = String(env.groupChatId || '').split(/\s+/).filter(Boolean);
 const TIMEZONE = 'Asia/Makassar';
 const MAX_REMINDERS_PER_DAY = 3;
@@ -37,7 +38,8 @@ async function sendToAll(text) {
       await fetch(`${TELEGRAM_API}/sendMessage`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ chat_id: String(chatId), text, parse_mode: 'HTML', disable_web_page_preview: true })
+        body: JSON.stringify({ chat_id: String(chatId), text, parse_mode: 'HTML', disable_web_page_preview: true }),
+        signal: AbortSignal.timeout(15000)
       });
     } catch (e) {
       console.error(`sendToAll ${chatId}: ${e.message}`);
@@ -137,7 +139,7 @@ async function run() {
     return;
   }
   if (!OWNER_ID) {
-    console.error('OWNER_ID tidak dikonfigurasi di .env.');
+    console.error('[${today}] OWNER_ID tidak dikonfigurasi di .env.');
     return;
   }
 
@@ -149,8 +151,6 @@ async function run() {
     const db = client.db(DB_NAME);
     const customers = db.collection(COLLECTION);
     const cfg = db.collection(CONFIG_COLLECTION);
-
-    await sendToAll(`[${today}] ⏰ Cron reminder jalan — ngecek pelanggan expired...`);
 
     // --- Reset counter harian ---
     const lastReset = await cfg.findOne({ _id: 'reminder_counter_reset_date' });
@@ -164,7 +164,7 @@ async function run() {
         { $set: { date: today, last_reset_at: new Date().toISOString() } },
         { upsert: true }
       );
-      await sendToAll(`[${today}] ✅ Counter reminder direset — ${r.modifiedCount} pelanggan`);
+      await sendToAll(`[${today}] ✅ Counter reminder direset — ${r.modifiedCount} pelanggan.`);
     } else {
       await sendToAll(`[${today}] ℹ️  Counter sudah direset hari ini.`);
     }
@@ -181,8 +181,6 @@ async function run() {
       await sendToAll(`[${today}] ✅ Tidak ada pelanggan expired yang perlu diingatkan.`);
       return;
     }
-
-    await sendToAll(`[${today}] 📋 ${pending.length} pelanggan expired ditemukan — menyiapkan data...`);
 
     // --- Update counter & kumpulin data ---
     const nowISO = new Date().toISOString();
@@ -226,14 +224,11 @@ async function run() {
       const r = await sendTelegramMessage(gid, msg);
       await sendToAll(`  ${gid}: ${r.ok ? 'OK' : 'FAIL'}${r.ok ? '' : ' - ' + JSON.stringify(r)}`);
     }
-    const r2 = await sendTelegramMessage(OWNER_ID, msg);
-    await sendToAll(`[${today}] ✅ Reminder ke OWNER (${OWNER_ID}): ${r2.ok ? 'OK' : 'FAIL - ' + JSON.stringify(r2)}`);
 
   } catch (err) {
     await sendToAll(`[${today}] 💥 ERROR: ${err.message}`);
   } finally {
     await client.close();
-    await sendToAll(`[${today}] 🔚 Selesai.`);
   }
 }
 

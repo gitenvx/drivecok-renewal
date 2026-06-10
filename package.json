@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "reminders": "node --dns-result-order=ipv4first scripts/run-reminders.mjs",
     "import:preview": "node scripts/import-customers.mjs users/customers.sample.json",
     "import:write": "node scripts/import-customers.mjs --write"
   },
