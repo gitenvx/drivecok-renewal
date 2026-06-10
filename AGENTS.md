@@ -24,11 +24,13 @@ drivecok-renewal/
     kick-stop.mjs          Kick from group + stop + announcement
     list-summary.mjs       List active/expired/stopped customers
     renew-user.mjs         Extend subscription
-    run-reminders.mjs      Auto-remind expiring users (cron)
+    run-reminders.mjs      Auto-remind expiring users (cron) — kirim log + recap ke DM Owner & Grup
     import-customers.mjs   Bulk import from JSON
     env.mjs                .env config loader
     sync-check.py          Compare Telegram members vs DB
     session.py             Generate Pyrogram string session
+    promo.py               Kirim promo ke GROUP_PROMOSI via user session (cron)
+    promo.md               Isi pesan promosi — diedit langsung tanpa sentuh Python
   users/            ← JSON import samples
   venv/             ← Python virtual env (Pyrofork)
 ```
@@ -66,7 +68,10 @@ drivecok-renewal/
 4. **Kick flow:** Kick from group → send announcement → send `/u <user_id>` to bot if plan contains `PrivateChatBot` → set DB status to `stopped`.
 5. **Python** via `venv/bin/python3` (Linux/WSL path).
 6. **Reminders:** Only send if `expire_date` is today or past, and `reminder_count_today < 3`. Max 3x/day.
-7. **Error handling:** If Telegram API returns 400/403/404, report code + description. Don't ignore.
+   - Log & recap langsung dikirim ke DM Owner + Grup via Bot (gak ada file log lokal).
+   - Jalan pake `npm run reminders` (via `--dns-result-order=ipv4first` untuk WSL).
+7. **Promo content**: Edit `scripts/promo.md` — script Python tinggal baca dari file.
+8. **Error handling:** If Telegram API returns 400/403/404, report code + description. Don't ignore.
 8. **Default expire_date** when adding user without date = 1 month from today (or specific join date if Ucok mentions).
 
 ## Command Reference
@@ -84,9 +89,10 @@ drivecok-renewal/
 ### Automation & Tools
 | Command | Description |
 |---------|-------------|
-| `node scripts/run-reminders.mjs` | Send expiry reminders (cron: `*/30 0-22 * * *`) |
+| `npm run reminders` (or `node --dns-result-order=ipv4first scripts/run-reminders.mjs`) | Send expiry reminders — kirim log + recap ke DM Owner & Grup (cron) |
 | `venv/bin/python3 scripts/sync-check.py` | Sync DB vs Telegram group members |
 | `venv/bin/python3 scripts/session.py` | Generate Telegram string session |
+| `venv/bin/python3 scripts/promo.py` | Send promo to GROUP_PROMOSI (content from promo.md) |
 
 ## Related Docs
 

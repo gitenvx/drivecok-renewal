@@ -25,9 +25,11 @@ drivecok-renewal/
     ├── kick-stop.mjs        ← Eksekusi kick user, kirim pengumuman, dan update status jadi "stopped".
     ├── list-summary.mjs     ← Ngecek status pelanggan (siapa aja yang aktif, expired, atau stopped).
     ├── renew-user.mjs       ← Buat perpanjang masa aktif pelanggan.
-    ├── run-reminders.mjs    ← Bot akan ngingetin user kalau mau expired (jalan otomatis via cron).
+    ├── run-reminders.mjs    ← Bot akan ngingetin user kalau mau expired (jalan otomatis via cron). Langsung kirim log + recap ke DM Owner & Grup.
     ├── session.py           ← Script Python untuk generate string session Pyrogram.
-    └── sync-check.py        ← Script Python buat nyocokin daftar member di grup asli vs data di database.
+    ├── sync-check.py        ← Script Python buat nyocokin daftar member di grup asli vs data di database.
+    ├── promo.py             ← Kirim iklan ke GROUP_PROMOSI via user session (jalan otomatis via cron).
+    └── promo.md             ← Isi teks promosi — bisa diedit langsung tanpa perlu edit Python.
 ```
 
 ---
@@ -83,6 +85,7 @@ MONGODB_URI="url_mongodb_lo"
 MONGODB_DBNAME="nama_database"
 MONGODB_COLLECTION="nama_collection"
 GROUP_CHAT_ID="-100xxxxxx"
+OWNER_ID="1181409600"
 
 BOT_TOKEN="token_dari_botfather"
 
@@ -93,6 +96,7 @@ TELEGRAM_STRING_SESSION="...string_session_pyrogram_lo..."
 
 **Penjelasan singkat:**
 - `GROUP_CHAT_ID`: ID grup Telegram tujuan (kalau lebih dari satu, pisahin pakai spasi). Semua kick, reminder, dan sync-check bakal beroperasi di grup-grup ini.
+- `OWNER_ID`: ID Telegram lo — reminder & log akan dikirim ke DM ini via Bot.
 - `BOT_TOKEN`: Token bot lo (dapat dari BotFather).
 - `TELEGRAM_API_ID` & `TELEGRAM_API_HASH`: Ambil dari my.telegram.org. Ini wajib buat login *user session*.
 - `TELEGRAM_STRING_SESSION`: Sesi login akun lo via Pyrogram biar skrip bisa baca daftar member grup layaknya akun beneran (kepakai buat `sync-check.py`).
@@ -186,13 +190,26 @@ node scripts/delete-user.mjs <user_id>
 ```
 
 ### 6. Reminder Otomatis (Cron Job) ⏰
-Tinggal jalanin ini (biasanya diset biar jalan otomatis tiap hari pakai cron):
+Tinggal jalanin ini (biasanya diset biar jalan otomatis tiap 30 menit pakai cron):
 ```bash
-node scripts/run-reminders.mjs
+npm run reminders
+# atau
+node --dns-result-order=ipv4first scripts/run-reminders.mjs
 ```
-Skrip bakal nyari user yang masa aktifnya habis atau sudah lewat, lalu ngirim pengingat di grup. Tenang, ada batasan maksimal 3 kali sehari biar gak nyepam.
+**Alur terbaru:**
+- Semua log progress dikirim langsung ke **DM Owner** & **Grup** via Bot.
+- Gak ada file log lokal — realtime aja.
+- Recap pelanggan expired dikirim dalam format rapi ber-link.
+- Batas maksimal 3x sehari per user biar gak nyepam.
 
-### 7. Sinkronisasi Data (Sync-Check) 🔍
+### 7. Promosi Broadcast 🎯
+Kirim pesan promosi ke GROUP_PROMOSI otomatis:
+```bash
+venv/bin/python3 scripts/promo.py
+```
+**Edit pesan promosi** gampang — tinggal ubah `scripts/promo.md`, gak perlu sentuh Python.
+
+### 8. Sinkronisasi Data (Sync-Check) 🔍
 Pernah kepikiran, "Jangan-jangan ada orang di grup Telegram tapi datanya gak ada di DB?" Nah, skrip Python ini gunanya buat ngecek silang antara anggota asli di Telegram vs data di MongoDB.
 
 ```bash
