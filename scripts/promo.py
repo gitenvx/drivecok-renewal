@@ -50,13 +50,19 @@ async def main():
     LOG_FILE.parent.mkdir(parents=True, exist_ok=True)
     LOG_FILE.write_text('')
 
-    group_promosi = os.environ.get("GROUP_PROMOSI")
+    group_promosi_raw = os.environ.get("GROUP_PROMOSI")
     api_id = os.environ.get("TELEGRAM_API_ID")
     api_hash = os.environ.get("TELEGRAM_API_HASH")
     session_str = os.environ.get("TELEGRAM_STRING_SESSION")
 
-    if not all([group_promosi, api_id, api_hash, session_str]):
+    if not all([group_promosi_raw, api_id, api_hash, session_str]):
         log("ERROR: Missing env vars — GROUP_PROMOSI, TELEGRAM_API_ID, TELEGRAM_API_HASH, TELEGRAM_STRING_SESSION")
+        sys.exit(1)
+
+    # Parse multiple chat IDs (space-separated)
+    group_ids = [int(cid) for cid in group_promosi_raw.strip().split() if cid]
+    if not group_ids:
+        log("ERROR: GROUP_PROMOSI is empty")
         sys.exit(1)
 
     try:
@@ -77,15 +83,27 @@ async def main():
             session_string=session_str,
             in_memory=True,
         ) as app:
-            await app.send_message(
-                chat_id=int(group_promosi),
-                text=msg,
-                parse_mode=enums.ParseMode.MARKDOWN,
-                disable_web_page_preview=True,
-            )
-            log(f"✅ Promo terkirim ke {group_promosi} — {now}")
+            success = 0
+            fail = 0
+            for i, cid in enumerate(group_ids):
+                if i > 0:
+                    await asyncio.sleep(5)
+                try:
+                    await app.send_message(
+                        chat_id=cid,
+                        text=msg,
+                        parse_mode=enums.ParseMode.MARKDOWN,
+                        disable_web_page_preview=True,
+                    )
+                    log(f"✅ Promo terkirim ke {cid}")
+                    success += 1
+                except Exception as e:
+                    log(f"❌ Gagal kirim ke {cid}: {e}")
+                    fail += 1
+
+            log(f"📊 Selesai: {success} berhasil, {fail} gagal dari {len(group_ids)} grup — {now}")
     except Exception as e:
-        log(f"❌ Gagal kirim promo: {e}")
+        log(f"❌ Fatal: {e}")
         sys.exit(1)
 
 if __name__ == "__main__":
