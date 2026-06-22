@@ -12,7 +12,7 @@ import { setDefaultResultOrder } from 'dns';
 setDefaultResultOrder('ipv4first');
 const GROUP_CHAT_IDS = String(env.groupChatId || '').split(/\s+/).filter(Boolean);
 const TIMEZONE = 'Asia/Makassar';
-const MAX_REMINDERS_PER_DAY = 3;
+const MAX_REMINDERS_PER_DAY = 2;
 const CONFIG_COLLECTION = 'cron_config';
 
 function getLocalToday() {

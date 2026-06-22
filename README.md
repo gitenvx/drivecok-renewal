@@ -117,7 +117,7 @@ Data pelanggan gue simpan di collection `customers` MongoDB dengan format kayak 
   status: "active",                  // Statusnya: "active" atau "stopped"
   billing: {
     reminder_enabled: true,          // Mau dingetin gak pas mau expired?
-    reminder_count_today: 0,         // Udah berapa kali dingetin hari ini (maksimal 3)
+    reminder_count_today: 0,         // Udah berapa kali dingetin hari ini (maksimal 2)
     last_reminded_at: null,          // Kapan terakhir dikirimi pesan reminder
     last_renewed_at: null,           // Kapan terakhir perpanjang
     stopped_at: null,                // Kapan distop (kalau statusnya stopped)
@@ -200,7 +200,7 @@ node --dns-result-order=ipv4first scripts/reminders-user.mjs
 - Semua log progress dikirim langsung ke **DM Owner** & **Grup** via Bot.
 - Gak ada file log lokal — realtime aja.
 - Recap pelanggan expired dikirim dalam format rapi ber-link.
-- Batas maksimal 3x sehari per user biar gak nyepam.
+- Batas maksimal 2x sehari per user biar gak nyepam.
 
 ### 7. Promosi Broadcast 🎯
 Kirim pesan promosi ke GROUP_PROMOSI otomatis:

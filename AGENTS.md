@@ -67,7 +67,7 @@ drivecok-renewal/
 3. **Plan names:** Jika user disebut "PrivateChatBot" → pakai `Group_PrivateChatBot`. Default = `Group`.
 4. **Kick flow:** Kick from group → send announcement → send `/u <user_id>` to bot if plan contains `PrivateChatBot` → set DB status to `stopped`.
 5. **Python** via `venv/bin/python3` (Linux/WSL path).
-6. **Reminders:** Only send if `expire_date` is today or past, and `reminder_count_today < 3`. Max 3x/day.
+6. **Reminders:** Only send if `expire_date` is today or past, and `reminder_count_today < 2`. Max 2x/day.
    - Log & recap langsung dikirim ke DM Owner + Grup via Bot (gak ada file log lokal).
    - Jalan pake `npm run reminders` (via `--dns-result-order=ipv4first` untuk WSL).
 7. **Promo content**: Edit `scripts/promo.md` — script Python tinggal baca dari file.
