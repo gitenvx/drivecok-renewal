@@ -4,9 +4,8 @@ import asyncio
 import sys
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
-from dotenv import load_dotenv
 
-# GMT+8
+
 WITA = timezone(timedelta(hours=8))
 
 PROMO_FILE = Path(__file__).resolve().parent / 'promo.md'
@@ -17,12 +16,11 @@ def log(msg):
     print(f'[{ts}] {msg}')
 
 async def send_with_bot(bot_token, chat_id, text):
-    """Kirim pesan pake bot token via aiohttp, dgn error handling."""
     try:
         import aiohttp
     except ImportError:
-        log("⚠️ aiohttp belum terinstall. Notif bot dilewati.")
-        return False
+        os.system("pip install --no-cache-dir aiohttp -q")
+        import aiohttp
 
     url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
     payload = {
@@ -48,6 +46,11 @@ async def send_with_bot(bot_token, chat_id, text):
     return False
 
 async def main():
+    try:
+        from dotenv import load_dotenv
+    except ImportError:
+        os.system("pip install --no-cache-dir python-dotenv -q")
+        from dotenv import load_dotenv
     load_dotenv(Path(__file__).resolve().parent.parent / '.env')
 
     group_promosi_raw = os.environ.get("GROUP_PROMOSI")
@@ -58,19 +61,17 @@ async def main():
     bot_token = os.environ.get("BOT_TOKEN")
 
     if not all([group_promosi_raw, api_id, api_hash, session_str, owner_id, bot_token]):
-        log("ERROR: Missing env vars — GROUP_PROMOSI, TELEGRAM_API_ID, TELEGRAM_API_HASH, TELEGRAM_STRING_SESSION, OWNER_ID, BOT_TOKEN")
+        log("⚠️ Missing env vars — GROUP_PROMOSI, TELEGRAM_API_ID, TELEGRAM_API_HASH, TELEGRAM_STRING_SESSION, OWNER_ID, BOT_TOKEN")
         sys.exit(1)
 
-    # Parse multiple chat IDs (space-separated)
     group_ids = [int(cid) for cid in group_promosi_raw.strip().split() if cid]
     if not group_ids:
-        log("ERROR: GROUP_PROMOSI is empty")
+        log("⚠️ GROUP_PROMOSI is empty")
         sys.exit(1)
 
     try:
         from pyrogram import Client, enums, errors
     except ImportError:
-        log("Installing pyrogram...")
         os.system("pip install --no-cache-dir pyrofork pymongo tgcrypto aiohttp python-dotenv -q")
         from pyrogram import Client, enums, errors
 
@@ -100,16 +101,16 @@ async def main():
                     log(f"✅ Promo terkirim ke {cid}")
                     success += 1
                 except Exception as e:
-                    log(f"❌ Gagal kirim ke {cid}: {e}")
+                    log(f"⚠️ Gagal kirim ke {cid}: {e}")
                     fail += 1
-                    await send_with_bot(bot_token, owner_id, f"❌ Gagal kirim promo ke `{cid}`:\n`{e}`")
+                    await send_with_bot(bot_token, owner_id, f"⚠️ Gagal kirim promo ke `{cid}`:\n`{e}`")
 
             recap = f"📊 Selesai: {success} berhasil, {fail} gagal dari {len(group_ids)} grup — {now}"
             log(recap)
             await send_with_bot(bot_token, owner_id, recap)
 
     except Exception as e:
-        err_msg = f"❌ Fatal error promo:\n`{e}`"
+        err_msg = f"⚠️ Fatal error promo:\n`{e}`"
         log(err_msg)
         await send_with_bot(bot_token, owner_id, err_msg)
         sys.exit(1)
