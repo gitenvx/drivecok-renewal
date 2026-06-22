@@ -1,62 +1,64 @@
 #!/usr/bin/env python3
-"""
-Kirim pesan promosi ke GROUP_PROMOSI via session Telegram user.
-Jadwal: cron tiap 30 menit.
-"""
-
 import os
-import re
 import asyncio
 import sys
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
+from dotenv import load_dotenv
 
 # GMT+8
 WITA = timezone(timedelta(hours=8))
-
-LOG_FILE = Path(__file__).resolve().parent.parent / 'logs' / 'promo.log'
 
 PROMO_FILE = Path(__file__).resolve().parent / 'promo.md'
 PROMO_MSG = PROMO_FILE.read_text(encoding='utf-8').strip()
 
 def log(msg):
     ts = datetime.now(WITA).strftime('%Y-%m-%d %H:%M WITA')
-    line = f'[{ts}] {msg}'
-    print(msg)
-    LOG_FILE.parent.mkdir(parents=True, exist_ok=True)
-    with open(LOG_FILE, 'a') as f:
-        f.write(line + '\n')
+    print(f'[{ts}] {msg}')
 
-def load_env():
-    env_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '.env')
-    if os.path.exists(env_path):
-        with open(env_path, 'r') as f:
-            for line in f:
-                line = line.strip()
-                if not line or line.startswith('#'):
-                    continue
-                m = re.match(r'^([A-Za-z_][A-Za-z0-9_]*)=(.*)$', line)
-                if m:
-                    key, value = m.group(1), m.group(2).strip()
-                    if (value.startswith('"') and value.endswith('"')) or \
-                       (value.startswith("'") and value.endswith("'")):
-                        value = value[1:-1]
-                    os.environ[key] = value
+async def send_with_bot(bot_token, chat_id, text):
+    """Kirim pesan pake bot token via aiohttp, dgn error handling."""
+    try:
+        import aiohttp
+    except ImportError:
+        log("⚠️ aiohttp belum terinstall. Notif bot dilewati.")
+        return False
+
+    url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
+    payload = {
+        "chat_id": int(chat_id),
+        "text": text,
+        "parse_mode": "Markdown",
+        "disable_web_page_preview": True,
+    }
+
+    try:
+        async with aiohttp.ClientSession() as sess:
+            async with sess.post(url, json=payload, timeout=15) as resp:
+                if not resp.ok:
+                    err = await resp.text()
+                    log(f"⚠️ Bot notif HTTP status {resp.status}: {err}")
+                return resp.ok
+    except asyncio.TimeoutError:
+        log("⚠️ Bot notif timeout")
+    except aiohttp.ClientError as e:
+        log(f"⚠️ Bot notif network error (aiohttp): {e}")
+    except Exception as e:
+        log(f"⚠️ Bot notif failed: {e}")
+    return False
 
 async def main():
-    load_env()
-
-    # Clear log at start of each run
-    LOG_FILE.parent.mkdir(parents=True, exist_ok=True)
-    LOG_FILE.write_text('')
+    load_dotenv(Path(__file__).resolve().parent.parent / '.env')
 
     group_promosi_raw = os.environ.get("GROUP_PROMOSI")
     api_id = os.environ.get("TELEGRAM_API_ID")
     api_hash = os.environ.get("TELEGRAM_API_HASH")
     session_str = os.environ.get("TELEGRAM_STRING_SESSION")
+    owner_id = os.environ.get("OWNER_ID")
+    bot_token = os.environ.get("BOT_TOKEN")
 
-    if not all([group_promosi_raw, api_id, api_hash, session_str]):
-        log("ERROR: Missing env vars — GROUP_PROMOSI, TELEGRAM_API_ID, TELEGRAM_API_HASH, TELEGRAM_STRING_SESSION")
+    if not all([group_promosi_raw, api_id, api_hash, session_str, owner_id, bot_token]):
+        log("ERROR: Missing env vars — GROUP_PROMOSI, TELEGRAM_API_ID, TELEGRAM_API_HASH, TELEGRAM_STRING_SESSION, OWNER_ID, BOT_TOKEN")
         sys.exit(1)
 
     # Parse multiple chat IDs (space-separated)
@@ -69,7 +71,7 @@ async def main():
         from pyrogram import Client, enums, errors
     except ImportError:
         log("Installing pyrogram...")
-        os.system("pip install --no-cache-dir pyrofork pymongo tgcrypto -q")
+        os.system("pip install --no-cache-dir pyrofork pymongo tgcrypto aiohttp python-dotenv -q")
         from pyrogram import Client, enums, errors
 
     now = datetime.now(WITA).strftime("%Y-%m-%d %H:%M WITA")
@@ -100,10 +102,16 @@ async def main():
                 except Exception as e:
                     log(f"❌ Gagal kirim ke {cid}: {e}")
                     fail += 1
+                    await send_with_bot(bot_token, owner_id, f"❌ Gagal kirim promo ke `{cid}`:\n`{e}`")
 
-            log(f"📊 Selesai: {success} berhasil, {fail} gagal dari {len(group_ids)} grup — {now}")
+            recap = f"📊 Selesai: {success} berhasil, {fail} gagal dari {len(group_ids)} grup — {now}"
+            log(recap)
+            await send_with_bot(bot_token, owner_id, recap)
+
     except Exception as e:
-        log(f"❌ Fatal: {e}")
+        err_msg = f"❌ Fatal error promo:\n`{e}`"
+        log(err_msg)
+        await send_with_bot(bot_token, owner_id, err_msg)
         sys.exit(1)
 
 if __name__ == "__main__":

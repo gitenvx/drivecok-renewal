@@ -21,13 +21,13 @@ drivecok-renewal/
     ├── add-user.mjs         ← Buat masukin pelanggan baru.
     ├── delete-user.mjs      ← Hapus data pelanggan dari database.
     ├── env.mjs              ← Utility untuk narik konfigurasi .env (dipakai script lain).
-    ├── import-customers.mjs ← Import data massal dari JSON ke MongoDB (biasanya cuma sekali pakai).
-    ├── kick-stop.mjs        ← Eksekusi kick user, kirim pengumuman, dan update status jadi "stopped".
-    ├── list-summary.mjs     ← Ngecek status pelanggan (siapa aja yang aktif, expired, atau stopped).
+    ├── import-user.mjs ← Import data massal dari JSON ke MongoDB (biasanya cuma sekali pakai).
+    ├── stop-user.mjs        ← Eksekusi kick user, kirim pengumuman, dan update status jadi "stopped".
+    ├── list-user.mjs     ← Ngecek status pelanggan (siapa aja yang aktif, expired, atau stopped).
     ├── renew-user.mjs       ← Buat perpanjang masa aktif pelanggan.
-    ├── run-reminders.mjs    ← Bot akan ngingetin user kalau mau expired (jalan otomatis via cron). Langsung kirim log + recap ke DM Owner & Grup.
-    ├── session.py           ← Script Python untuk generate string session Pyrogram.
-    ├── sync-check.py        ← Script Python buat nyocokin daftar member di grup asli vs data di database.
+    ├── reminders-user.mjs    ← Bot akan ngingetin user kalau mau expired (jalan otomatis via cron). Langsung kirim log + recap ke DM Owner & Grup.
+    ├── gen_session.py           ← Script Python untuk generate string session Pyrogram.
+    ├── sync-check-user.py        ← Script Python buat nyocokin daftar member di grup asli vs data di database.
     ├── promo.py             ← Kirim iklan ke GROUP_PROMOSI via user session (jalan otomatis via cron).
     └── promo.md             ← Isi teks promosi — bisa diedit langsung tanpa perlu edit Python.
 ```
@@ -49,7 +49,7 @@ npm install
 ```
 
 ### 2. Setup Python (Untuk Fitur Sync & Session)
-Skrip `sync-check.py` dan `session.py` jalan pakai Python (Pyrogram). Biar rapi, gue bikin *virtual environment*:
+Skrip `sync-check-user.py` dan `gen_session.py` jalan pakai Python (Pyrogram). Biar rapi, gue bikin *virtual environment*:
 ```bash
 # Bikin virtual environment
 python3 -m venv venv
@@ -68,7 +68,7 @@ pip install pyrofork pymongo tgcrypto
 Biar skrip sinkronisasi bisa narik data anggota dari grup Telegram, gue butuh "String Session" layaknya login biasa. Tinggal jalanin skrip bawaan ini:
 ```bash
 # Pastikan virtual environment Python udah aktif
-python scripts/session.py
+python scripts/gen_session.py
 ```
 - Skrip bakal otomatis narik **API ID** dan **API HASH** dari file `.env` lo. (Kalau belum ada di `.env`, baru akan diminta masukin manual).
 - Terus masukin nomor HP dan kode OTP dari Telegram.
@@ -91,7 +91,7 @@ BOT_TOKEN="token_dari_botfather"
 
 TELEGRAM_API_ID=12345
 TELEGRAM_API_HASH="hash_dari_mytelegram"
-TELEGRAM_STRING_SESSION="...string_session_pyrogram_lo..."
+TELEGRAM_STRING_SESSION="...string_gen_session.pyrogram_lo..."
 ```
 
 **Penjelasan singkat:**
@@ -99,7 +99,7 @@ TELEGRAM_STRING_SESSION="...string_session_pyrogram_lo..."
 - `OWNER_ID`: ID Telegram lo — reminder & log akan dikirim ke DM ini via Bot.
 - `BOT_TOKEN`: Token bot lo (dapat dari BotFather).
 - `TELEGRAM_API_ID` & `TELEGRAM_API_HASH`: Ambil dari my.telegram.org. Ini wajib buat login *user session*.
-- `TELEGRAM_STRING_SESSION`: Sesi login akun lo via Pyrogram biar skrip bisa baca daftar member grup layaknya akun beneran (kepakai buat `sync-check.py`).
+- `TELEGRAM_STRING_SESSION`: Sesi login akun lo via Pyrogram biar skrip bisa baca daftar member grup layaknya akun beneran (kepakai buat `sync-check-user.py`).
 
 ---
 
@@ -146,10 +146,10 @@ Waktu nambahin atau ngubah user, ada 2 jenis paket utama:
 Pengen tau siapa aja yang aktif, expired, atau udah stop?
 ```bash
 # Lihat ringkasan keseluruhan
-node scripts/list-summary.mjs
+node scripts/list-user.mjs
 
 # Cek detail spesifik buat satu user
-node scripts/list-summary.mjs <user_id>
+node scripts/list-user.mjs <user_id>
 ```
 
 ### 2. Tambah Pelanggan Baru ➕
@@ -180,7 +180,7 @@ Kalau user milih berhenti atau expired terlalu lama, skrip ini bakal ngerjain se
 4. Update status DB jadi `stopped`.
 
 ```bash
-node scripts/kick-stop.mjs <user_id>
+node scripts/stop-user.mjs <user_id>
 ```
 
 ### 5. Hapus User Sampai Bersih 🗑️
@@ -194,7 +194,7 @@ Tinggal jalanin ini (biasanya diset biar jalan otomatis tiap 30 menit pakai cron
 ```bash
 npm run reminders
 # atau
-node --dns-result-order=ipv4first scripts/run-reminders.mjs
+node --dns-result-order=ipv4first scripts/reminders-user.mjs
 ```
 **Alur terbaru:**
 - Semua log progress dikirim langsung ke **DM Owner** & **Grup** via Bot.
@@ -214,7 +214,7 @@ Pernah kepikiran, "Jangan-jangan ada orang di grup Telegram tapi datanya gak ada
 
 ```bash
 # Ingat, pakai environment Python yang udah dibikin
-venv/bin/python3 scripts/sync-check.py
+venv/bin/python3 scripts/sync-check-user.py
 ```
 Outputnya bakal ngasih tau lo:
 - Berapa orang yang datanya sinkron.

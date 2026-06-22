@@ -28,26 +28,6 @@ function delay(ms) {
   return new Promise(r => setTimeout(r, ms));
 }
 
-async function sendToAll(text) {
-  if (!TELEGRAM_API) return;
-  const targets = [...GROUP_CHAT_IDS];
-  if (OWNER_ID && !targets.includes(OWNER_ID)) targets.push(OWNER_ID);
-  
-  for (const chatId of targets) {
-    try {
-      await fetch(`${TELEGRAM_API}/sendMessage`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ chat_id: String(chatId), text, parse_mode: 'HTML', disable_web_page_preview: true }),
-        signal: AbortSignal.timeout(15000)
-      });
-    } catch (e) {
-      console.error(`sendToAll ${chatId}: ${e.message}`);
-    }
-    await delay(5000);
-  }
-}
-
 async function sendTelegramMessage(chatId, text) {
   if (!TELEGRAM_API) return { ok: false, error: 'BOT_TOKEN tidak dikonfigurasi' };
   
@@ -99,6 +79,28 @@ async function sendTelegramMessage(chatId, text) {
   return { ok: false, error: 'Max retries reached' };
 }
 
+// 🔧 Fix: kirim log/debug ke OWNER doang, bukan ke grup
+async function sendToOwner(text) {
+  if (!TELEGRAM_API || !OWNER_ID) return;
+  try {
+    await sendTelegramMessage(OWNER_ID, text);
+  } catch (e) {
+    console.error(`sendToOwner: ${e.message}`);
+  }
+}
+
+// 🔧 Fix: kirim pesan final ke semua grup
+async function sendToGroups(text) {
+  if (!TELEGRAM_API) return;
+  for (const gid of GROUP_CHAT_IDS) {
+    try {
+      await sendTelegramMessage(gid, text);
+    } catch (e) {
+      console.error(`sendToGroups ${gid}: ${e.message}`);
+    }
+  }
+}
+
 function buildReminderMessage(customers, today) {
   if (!customers.length) return '';
   
@@ -135,7 +137,7 @@ async function run() {
   const today = getLocalToday();
 
   if (!BOT_TOKEN || !MONGO_URI) {
-    await sendToAll(`[${today}] 💥 FATAL: BOT_TOKEN atau MONGODB_URI tidak dikonfigurasi.`);
+    await sendToOwner(`[${today}] 💥 FATAL: BOT_TOKEN atau MONGODB_URI tidak dikonfigurasi.`);
     return;
   }
   if (!OWNER_ID) {
@@ -164,9 +166,9 @@ async function run() {
         { $set: { date: today, last_reset_at: new Date().toISOString() } },
         { upsert: true }
       );
-      await sendToAll(`[${today}] ✅ Counter reminder direset — ${r.modifiedCount} pelanggan.`);
+      await sendToOwner(`[${today}] ✅ Counter reminder direset — ${r.modifiedCount} pelanggan.`);
     } else {
-      await sendToAll(`[${today}] ℹ️  Counter sudah direset hari ini.`);
+      console.log(`[${today}] ℹ️  Counter sudah direset hari ini.`);
     }
 
     // --- Cari pelanggan expired yg perlu reminder ---
@@ -178,7 +180,7 @@ async function run() {
     }).toArray();
 
     if (!pending.length) {
-      await sendToAll(`[${today}] ✅ Tidak ada pelanggan expired yang perlu diingatkan.`);
+      console.log(`[${today}] ✅ Tidak ada pelanggan expired.`);
       return;
     }
 
@@ -211,22 +213,14 @@ async function run() {
         expire_date: ed, 
         days_overdue: dv 
       });
-
-      const nameLabel = doc.name || '(No Name)';
-      const userLabel = doc.username ? `@${doc.username.replace('@','')}` : nameLabel;
-      const overdueText = dv === 0 ? 'hari ini' : `${dv} hari lewat`;
-      await sendToAll(`[${today}]   🔔 ${userLabel} (${doc.telegram_user_id}) — ${overdueText}, plan ${doc.plan} (pengingat ke-${nc}/${MAX_REMINDERS_PER_DAY})`);
     }
 
-    // Kirim recap reminder ke grup & DM
+    // Kirim recap ke grup (1 pesan saja)
     const msg = buildReminderMessage(data, today);
-    for (const gid of GROUP_CHAT_IDS) {
-      const r = await sendTelegramMessage(gid, msg);
-      await sendToAll(`  ${gid}: ${r.ok ? 'OK' : 'FAIL'}${r.ok ? '' : ' - ' + JSON.stringify(r)}`);
-    }
+    await sendToGroups(msg);
 
   } catch (err) {
-    await sendToAll(`[${today}] 💥 ERROR: ${err.message}`);
+    await sendToOwner(`[${today}] 💥 ERROR: ${err.message}`);
   } finally {
     await client.close();
   }
@@ -234,6 +228,6 @@ async function run() {
 
 run().catch(async err => {
   const today = getLocalToday();
-  await sendToAll(`[${today}] 💥 FATAL: ${err.message}`);
+  await sendToOwner(`[${today}] 💥 FATAL: ${err.message}`);
   process.exit(1);
 });

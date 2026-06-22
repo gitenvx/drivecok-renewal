@@ -21,14 +21,14 @@ drivecok-renewal/
   scripts/          ← All operational scripts (Node.js .mjs + Python .py)
     add-user.mjs           Add new customer
     delete-user.mjs        Permanently remove customer
-    kick-stop.mjs          Kick from group + stop + announcement
-    list-summary.mjs       List active/expired/stopped customers
+    stop-user.mjs          Kick from group + stop + announcement
+    list-user.mjs       List active/expired/stopped customers
     renew-user.mjs         Extend subscription
-    run-reminders.mjs      Auto-remind expiring users (cron) — kirim log + recap ke DM Owner & Grup
-    import-customers.mjs   Bulk import from JSON
+    reminders-user.mjs      Auto-remind expiring users (cron) — kirim log + recap ke DM Owner & Grup
+    import-user.mjs   Bulk import from JSON
     env.mjs                .env config loader
-    sync-check.py          Compare Telegram members vs DB
-    session.py             Generate Pyrogram string session
+    sync-check-user.py          Compare Telegram members vs DB
+    gen_session.py             Generate Pyrogram string session
     promo.py               Kirim promo ke GROUP_PROMOSI via user session (cron)
     promo.md               Isi pesan promosi — diedit langsung tanpa sentuh Python
   users/            ← JSON import samples
@@ -79,19 +79,19 @@ drivecok-renewal/
 ### Customer Operations (from project root)
 | Command | Description |
 |---------|-------------|
-| `node scripts/list-summary.mjs` | List all customers |
-| `node scripts/list-summary.mjs <user_id>` | Check specific customer |
+| `node scripts/list-user.mjs` | List all customers |
+| `node scripts/list-user.mjs <user_id>` | Check specific customer |
 | `node scripts/add-user.mjs <user_id> <username> <name> <plan> [expire_date]` | Add customer |
 | `node scripts/renew-user.mjs <user_id> [date]` | Renew (+1mo from DB expire_date default) |
-| `node scripts/kick-stop.mjs <user_id>` | Kick + stop customer |
+| `node scripts/stop-user.mjs <user_id>` | Kick + stop customer |
 | `node scripts/delete-user.mjs <user_id>` | Permanently delete customer |
 
 ### Automation & Tools
 | Command | Description |
 |---------|-------------|
-| `npm run reminders` (or `node --dns-result-order=ipv4first scripts/run-reminders.mjs`) | Send expiry reminders — kirim log + recap ke DM Owner & Grup (cron) |
-| `venv/bin/python3 scripts/sync-check.py` | Sync DB vs Telegram group members |
-| `venv/bin/python3 scripts/session.py` | Generate Telegram string session |
+| `npm run reminders` (or `node --dns-result-order=ipv4first scripts/reminders-user.mjs`) | Send expiry reminders — kirim log + recap ke DM Owner & Grup (cron) |
+| `venv/bin/python3 scripts/sync-check-user.py` | Sync DB vs Telegram group members |
+| `venv/bin/python3 scripts/gen_session.py` | Generate Telegram string session |
 | `venv/bin/python3 scripts/promo.py` | Send promo to GROUP_PROMOSI (content from promo.md) |
 
 ## Related Docs
