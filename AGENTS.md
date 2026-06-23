@@ -10,7 +10,7 @@
 | Runtime | Node.js (ESM — `"type": "module"`) + Python 3 |
 | Database | MongoDB (Atlas), collection: `customers` |
 | OS | Linux / WSL |
-| Python Deps | Pyrofork, PyMongo, TgCrypto |
+| Python Deps | Kurigram, PyMongo, TgCrypto |
 | Repo | `github.com/gitenvx/drivecok-renewal` |
 
 ## Folder Layout
@@ -25,10 +25,11 @@ drivecok-renewal/
     list-user.mjs       List active/expired/stopped customers
     renew-user.mjs         Extend subscription
     reminders-user.mjs      Auto-remind expiring users (cron) — kirim log + recap ke DM Owner & Grup
+    tagih-user-dm.py        DM nagih via user session ke member expired (cron)
     import-user.mjs   Bulk import from JSON
     env.mjs                .env config loader
     sync-check-user.py          Compare Telegram members vs DB
-    gen_session.py             Generate Pyrogram string session
+    gen_session.py             Generate Telegram string session
     promo.py               Kirim promo ke GROUP_PROMOSI via user session (cron)
     promo.md               Isi pesan promosi — diedit langsung tanpa sentuh Python
   users/            ← JSON import samples
@@ -50,6 +51,7 @@ drivecok-renewal/
     "reminder_count_today": 0,
     "last_reminded_at": null,
     "last_renewed_at": null,
+    "last_user_dm_date": null,
     "stopped_at": null,
     "created_at": "2026-06-05T..."
   }
@@ -67,12 +69,16 @@ drivecok-renewal/
 3. **Plan names:** Jika user disebut "PrivateChatBot" → pakai `Group_PrivateChatBot`. Default = `Group`.
 4. **Kick flow:** Kick from group → send announcement → send `/u <user_id>` to bot if plan contains `PrivateChatBot` → set DB status to `stopped`.
 5. **Python** via `venv/bin/python3` (Linux/WSL path).
-6. **Reminders:** Only send if `expire_date` is today or past, and `reminder_count_today < 2`. Max 2x/day.
-   - Log & recap langsung dikirim ke DM Owner + Grup via Bot (gak ada file log lokal).
-   - Jalan pake `npm run reminders` (via `--dns-result-order=ipv4first` untuk WSL).
-7. **Promo content**: Edit `scripts/promo.md` — script Python tinggal baca dari file.
-8. **Error handling:** If Telegram API returns 400/403/404, report code + description. Don't ignore.
-8. **Default expire_date** when adding user without date = 1 month from today (or specific join date if Ucok mentions).
+6. **Reminders (Bot):** Only send if `expire_date` is today or past, and `reminder_count_today < 2`. Max 2x/day.
+   - Log & recap langsung dikirim ke DM Owner + Grup via Bot.
+   - Cron tiap 1 jam (menit 2), log ke `logs/cron-reminders.log`.
+
+   **Tagih DM (User Session):** DM nagih via `TELEGRAM_STRING_SESSION` ke member expired.
+   - 1x/hari via field `billing.last_user_dm_date` (terpisah dari counter bot — zero konflik).
+   - Cron tiap 1 jam (menit 0), log ke `logs/cron-reminders.log`.
+8. **Promo content**: Edit `scripts/promo.md` — script Python tinggal baca dari file.
+9. **Error handling:** If Telegram API returns 400/403/404, report code + description. Don't ignore.
+10. **Default expire_date** when adding user without date = 1 month from today (or specific join date if Ucok mentions).
 
 ## Command Reference
 
@@ -90,6 +96,7 @@ drivecok-renewal/
 | Command | Description |
 |---------|-------------|
 | `npm run reminders` (or `node --dns-result-order=ipv4first scripts/reminders-user.mjs`) | Send expiry reminders — kirim log + recap ke DM Owner & Grup (cron) |
+| `venv/bin/python3 scripts/tagih-user-dm.py` | DM nagih ke member expired via user session (cron) |
 | `venv/bin/python3 scripts/sync-check-user.py` | Sync DB vs Telegram group members |
 | `venv/bin/python3 scripts/gen_session.py` | Generate Telegram string session |
 | `venv/bin/python3 scripts/promo.py` | Send promo to GROUP_PROMOSI (content from promo.md) |

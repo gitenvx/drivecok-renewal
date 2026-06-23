@@ -41,6 +41,7 @@ async function run() {
       reminder_count_today: 0,
       reminder_total: 0,
       last_reminded_at: null,
+      last_user_dm_date: null,
       created_at: nowISO
     }
   });

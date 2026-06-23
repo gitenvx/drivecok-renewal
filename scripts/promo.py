@@ -15,7 +15,7 @@ def log(msg):
     ts = datetime.now(WITA).strftime('%Y-%m-%d %H:%M WITA')
     print(f'[{ts}] {msg}')
 
-async def send_with_bot(bot_token, chat_id, text):
+async def send_owner_notif(bot_token, chat_id, text):
     try:
         import aiohttp
     except ImportError:
@@ -72,7 +72,7 @@ async def main():
     try:
         from pyrogram import Client, enums, errors
     except ImportError:
-        os.system("pip install --no-cache-dir pyrofork pymongo tgcrypto aiohttp python-dotenv -q")
+        os.system("pip install --no-cache-dir kurigram pymongo tgcrypto aiohttp python-dotenv -q")
         from pyrogram import Client, enums, errors
 
     now = datetime.now(WITA).strftime("%Y-%m-%d %H:%M WITA")
@@ -103,16 +103,16 @@ async def main():
                 except Exception as e:
                     log(f"⚠️ Gagal kirim ke {cid}: {e}")
                     fail += 1
-                    await send_with_bot(bot_token, owner_id, f"⚠️ Gagal kirim promo ke `{cid}`:\n`{e}`")
+                    await send_owner_notif(bot_token, owner_id, f"⚠️ Gagal kirim promo ke `{cid}`:\n`{e}`")
 
             recap = f"📊 Selesai: {success} berhasil, {fail} gagal dari {len(group_ids)} grup — {now}"
             log(recap)
-            await send_with_bot(bot_token, owner_id, recap)
+            await send_owner_notif(bot_token, owner_id, recap)
 
     except Exception as e:
         err_msg = f"⚠️ Fatal error promo:\n`{e}`"
         log(err_msg)
-        await send_with_bot(bot_token, owner_id, err_msg)
+        await send_owner_notif(bot_token, owner_id, err_msg)
         sys.exit(1)
 
 if __name__ == "__main__":

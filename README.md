@@ -26,7 +26,8 @@ drivecok-renewal/
     ├── list-user.mjs     ← Ngecek status pelanggan (siapa aja yang aktif, expired, atau stopped).
     ├── renew-user.mjs       ← Buat perpanjang masa aktif pelanggan.
     ├── reminders-user.mjs    ← Bot akan ngingetin user kalau mau expired (jalan otomatis via cron). Langsung kirim log + recap ke DM Owner & Grup.
-    ├── gen_session.py           ← Script Python untuk generate string session Pyrogram.
+    ├── tagih-user-dm.py      ← DM nagih via user session ke member expired (jalan otomatis via cron).
+    ├── gen_session.py           ← Script Python untuk generate string session Telegram.
     ├── sync-check-user.py        ← Script Python buat nyocokin daftar member di grup asli vs data di database.
     ├── promo.py             ← Kirim iklan ke GROUP_PROMOSI via user session (jalan otomatis via cron).
     └── promo.md             ← Isi teks promosi — bisa diedit langsung tanpa perlu edit Python.
@@ -61,7 +62,7 @@ source venv/bin/activate
 venv\Scripts\activate
 
 # Install dependencies Python
-pip install pyrofork pymongo tgcrypto
+pip install kurigram pymongo tgcrypto
 ```
 
 ### 3. Generate String Session
@@ -120,6 +121,7 @@ Data pelanggan gue simpan di collection `customers` MongoDB dengan format kayak 
     reminder_count_today: 0,         // Udah berapa kali dingetin hari ini (maksimal 2)
     last_reminded_at: null,          // Kapan terakhir dikirimi pesan reminder
     last_renewed_at: null,           // Kapan terakhir perpanjang
+    last_user_dm_date: null,         // Terakhir di-DM tagih user session (YYYY-MM-DD)
     stopped_at: null,                // Kapan distop (kalau statusnya stopped)
     created_at: "2026-06-05T..."     // Kapan data ini pertama kali dibuat
   }
@@ -190,17 +192,32 @@ node scripts/delete-user.mjs <user_id>
 ```
 
 ### 6. Reminder Otomatis (Cron Job) ⏰
-Tinggal jalanin ini (biasanya diset biar jalan otomatis tiap 30 menit pakai cron):
+Tinggal jalanin ini (biasanya diset biar jalan otomatis lewat cron tiap 1 jam):
 ```bash
 npm run reminders
 # atau
 node --dns-result-order=ipv4first scripts/reminders-user.mjs
 ```
-**Alur terbaru:**
-- Semua log progress dikirim langsung ke **DM Owner** & **Grup** via Bot.
-- Gak ada file log lokal — realtime aja.
-- Recap pelanggan expired dikirim dalam format rapi ber-link.
-- Batas maksimal 2x sehari per user biar gak nyepam.
+- Kirim pengingat ke grup via Bot.
+- Batas maksimal 2x sehari per user.
+- Recap pelanggan expired dikirim dalam format rapi.
+
+### 7. Tagih DM User Session 💬
+DM nagih via akun user (`TELEGRAM_STRING_SESSION`) ke member yg expired:
+```bash
+venv/bin/python3 scripts/tagih-user-dm.py
+```
+- Counter field `billing.last_user_dm_date` — **1x/hari**, zero konflik dgn bot reminders.
+- Error `PeerIdInvalid` (akun dihapus/diblokir) dilewatin otomatis.
+- Cron tiap 1 jam di menit 0.
+### 8. Promosi Broadcast 🎯
+Kirim pesan promosi ke GROUP_PROMOSI otomatis:
+```bash
+venv/bin/python3 scripts/promo.py
+```
+**Edit pesan promosi** gampang — tinggal ubah `scripts/promo.md`, gak perlu sentuh Python.
+
+### 9. Sinkronisasi Data (Sync-Check) 🔍
 
 ### 7. Promosi Broadcast 🎯
 Kirim pesan promosi ke GROUP_PROMOSI otomatis:

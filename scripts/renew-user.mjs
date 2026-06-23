@@ -53,6 +53,7 @@ async function run() {
           expire_date: newExpire,
           'billing.reminder_count_today': 0,
           'billing.last_reminded_at': null,
+          'billing.last_user_dm_date': null,
           'billing.last_renewed_at': new Date().toISOString(),
           status: 'active'
         }
