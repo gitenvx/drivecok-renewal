@@ -5,15 +5,17 @@ except ImportError as e:
     import os
 
     print("Will installing automatically pyrogram")
-    os.system("pip install --no-cache-dir pyrofork pymongo tgcrypto")
+    os.system("pip install --no-cache-dir kurigram tgcrypto")
 
 import os
 import re
 import asyncio
 from pyrogram import Client, enums, errors
+from pathlib import Path
+
 
 def load_env():
-    env_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '.env')
+    env_path = Path(__file__).resolve().parent.parent / '.env'
     if os.path.exists(env_path):
         with open(env_path, 'r') as f:
             for line in f:
@@ -49,7 +51,7 @@ async def ses() -> None:
         print("Menggunakan TELEGRAM_API_HASH dari .env: ***")
 
     async with Client(
-        name="USS", api_id=int(API_KEY), api_hash=API_HASH, in_memory=True
+        name="genses", api_id=int(API_KEY), api_hash=API_HASH, in_memory=True
     ) as user:
         output = "Sent to your saved messages!"
         try:
@@ -65,4 +67,3 @@ async def ses() -> None:
 
 if __name__ == "__main__":
     asyncio.get_event_loop().run_until_complete(ses())
-# end of gen session

@@ -9,10 +9,12 @@ import re
 import sys
 from pymongo import MongoClient
 from pyrogram import Client, enums
+import asyncio
+from pathlib import Path
 
 def load_env():
     """Load .env.mongo file"""
-    env_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '.env')
+    env_path = Path(__file__).resolve().parent.parent / '.env'
     
     if not os.path.exists(env_path):
         print(f"❌ File {env_path} tidak ditemukan")
@@ -152,5 +154,4 @@ async def main():
     mongo_client.close()
 
 if __name__ == '__main__':
-    import asyncio
     asyncio.run(main())

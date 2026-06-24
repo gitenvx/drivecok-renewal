@@ -5,6 +5,9 @@ import sys
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
 
+import aiohttp
+from dotenv import load_dotenv
+from pyrogram import Client, enums, errors
 
 WITA = timezone(timedelta(hours=8))
 
@@ -16,12 +19,6 @@ def log(msg):
     print(f'[{ts}] {msg}')
 
 async def send_owner_notif(bot_token, chat_id, text):
-    try:
-        import aiohttp
-    except ImportError:
-        os.system("pip install --no-cache-dir aiohttp -q")
-        import aiohttp
-
     url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
     payload = {
         "chat_id": int(chat_id),
@@ -46,11 +43,6 @@ async def send_owner_notif(bot_token, chat_id, text):
     return False
 
 async def main():
-    try:
-        from dotenv import load_dotenv
-    except ImportError:
-        os.system("pip install --no-cache-dir python-dotenv -q")
-        from dotenv import load_dotenv
     load_dotenv(Path(__file__).resolve().parent.parent / '.env')
 
     group_promosi_raw = os.environ.get("GROUP_PROMOSI")
@@ -68,12 +60,6 @@ async def main():
     if not group_ids:
         log("⚠️ GROUP_PROMOSI is empty")
         sys.exit(1)
-
-    try:
-        from pyrogram import Client, enums, errors
-    except ImportError:
-        os.system("pip install --no-cache-dir kurigram pymongo tgcrypto aiohttp python-dotenv -q")
-        from pyrogram import Client, enums, errors
 
     now = datetime.now(WITA).strftime("%Y-%m-%d %H:%M WITA")
     msg = f"{PROMO_MSG}\n\n⏰ __{now}__\nBy OpenClawCok Ai Gateway"

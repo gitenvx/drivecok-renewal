@@ -29,7 +29,7 @@ function delay(ms) {
 }
 
 async function sendTelegramMessage(chatId, text) {
-  if (!TELEGRAM_API) return { ok: false, error: 'BOT_TOKEN tidak dikonfigurasi' };
+  if (!TELEGRAM_API) return { ok: false, error: '💥 FATAL: BOT_TOKEN tidak dikonfigurasi' };
   
   const url = `${TELEGRAM_API}/sendMessage`;
   const MAX_RETRIES = 3;
@@ -141,7 +141,7 @@ async function run() {
     return;
   }
   if (!OWNER_ID) {
-    console.error('[${today}] OWNER_ID tidak dikonfigurasi di .env.');
+    console.error('[${today}] 💥 FATAL: OWNER_ID tidak dikonfigurasi di .env.');
     return;
   }
 
@@ -166,9 +166,10 @@ async function run() {
         { $set: { date: today, last_reset_at: new Date().toISOString() } },
         { upsert: true }
       );
-      await sendToOwner(`[${today}] ✅ Counter reminder direset — ${r.modifiedCount} pelanggan.`);
+      await sendToOwner(`[${today}]\n✅ Counter reminder group direset — ${r.modifiedCount} pelanggan.`);
     } else {
-      console.log(`[${today}] ℹ️  Counter sudah direset hari ini.`);
+      console.log(`[${today}] ℹ️ Counter reminder group sudah direset hari ini.`);
+      await sendToOwner(`[${today}]\nℹ️ Counter reminder group sudah direset hari ini.`);
     }
 
     // --- Cari pelanggan expired yg perlu reminder ---
@@ -180,7 +181,8 @@ async function run() {
     }).toArray();
 
     if (!pending.length) {
-      console.log(`[${today}] ✅ Tidak ada pelanggan expired.`);
+      console.log(`[${today}] ℹ️ Tidak ada pelanggan expired hari ini yang perlu di ingatkan dalam group.`);
+      await sendToOwner(`[${today}]\nℹ️ Tidak ada pelanggan expired hari ini yang perlu di ingatkan dalam group.`);
       return;
     }
 

@@ -2,7 +2,7 @@
 
 Halo! Selamat datang di repo **Drivecok Renewal**. Ini adalah *Customer Management System* (sistem manajemen pelanggan) yang dirancang khusus untuk mengurus operasional langganan layanan Group/Bot premium Telegram.
 
-Semua data pelanggan tersimpan rapi di MongoDB, dan gue menggunakan kumpulan skrip Node.js & Python untuk mempermudah hidup—mulai dari nambahin user baru, perpanjang langganan, sampai nge-kick otomatis kalau masa aktifnya habis.
+Semua data pelanggan tersimpan rapi di MongoDB, dan gue menggunakan kumpulan skrip Node.js & Python (dijalankan via `run-*.sh`) untuk mempermudah hidup—mulai dari nambahin user baru, perpanjang langganan, sampai nge-kick otomatis kalau masa aktifnya habis.
 
 ---
 
@@ -16,21 +16,26 @@ drivecok-renewal/
 ├── README.md           ← File yang lagi lo baca sekarang.
 ├── package.json        ← Daftar dependencies Node.js.
 ├── users/              ← Folder buat nyimpen data JSON (kalau butuh import awal).
-├── venv/               ← Virtual environment Python (khusus buat fitur sync-check).
+├── venv/               ← Virtual environment Python.
 └── scripts/            ← Inti dari repo ini! Semua skrip operasional ada di sini:
-    ├── add-user.mjs         ← Buat masukin pelanggan baru.
-    ├── delete-user.mjs      ← Hapus data pelanggan dari database.
-    ├── env.mjs              ← Utility untuk narik konfigurasi .env (dipakai script lain).
-    ├── import-user.mjs ← Import data massal dari JSON ke MongoDB (biasanya cuma sekali pakai).
-    ├── stop-user.mjs        ← Eksekusi kick user, kirim pengumuman, dan update status jadi "stopped".
-    ├── list-user.mjs     ← Ngecek status pelanggan (siapa aja yang aktif, expired, atau stopped).
-    ├── renew-user.mjs       ← Buat perpanjang masa aktif pelanggan.
-    ├── reminders-user.mjs    ← Bot akan ngingetin user kalau mau expired (jalan otomatis via cron). Langsung kirim log + recap ke DM Owner & Grup.
-    ├── tagih-user-dm.py      ← DM nagih via user session ke member expired (jalan otomatis via cron).
-    ├── gen_session.py           ← Script Python untuk generate string session Telegram.
-    ├── sync-check-user.py        ← Script Python buat nyocokin daftar member di grup asli vs data di database.
-    ├── promo.py             ← Kirim iklan ke GROUP_PROMOSI via user session (jalan otomatis via cron).
-    └── promo.md             ← Isi teks promosi — bisa diedit langsung tanpa perlu edit Python.
+    ├── *.mjs               ← Skrip Node.js — `node scripts/xxx.mjs`
+    ├── *.py                ← Skrip Python — dijalankan via shell wrapper:
+    │   ├── run-*.sh        ← `bash scripts/run-<skrip>.sh`
+    │   └── gen_session.py  ← Langsung `python3 scripts/gen_session.py`
+    ├── add-user.mjs        ← Tambah pelanggan baru.
+    ├── delete-user.mjs     ← Hapus data pelanggan.
+    ├── emas.py             ← Cek harga emas (via run-emas.sh).
+    ├── env.mjs             ← Utility narik .env.
+    ├── import-user.mjs     ← Import data massal dari JSON.
+    ├── list-user.mjs       ← Cek status pelanggan.
+    ├── renew-user.mjs      ← Perpanjang masa aktif.
+    ├── reminders-user.mjs  ← Bot reminder expired (via cron).
+    ├── stop-user.mjs       ← Kick user, kirim pengumuman, update status.
+    ├── tagih-dm.py         ← DM nagih via user session (via run-tagih-dm.sh).
+    ├── sync-user.py        ← Sinkron member grup vs DB (via run-sync-user.sh).
+    ├── promo.py            ← Kirim iklan (via run-promo.sh).
+    ├── promo.md            ← Isi teks promosi.
+    └── run-*.sh            ← Shell wrapper utk semua skrip Python
 ```
 
 ---
@@ -205,39 +210,40 @@ node --dns-result-order=ipv4first scripts/reminders-user.mjs
 ### 7. Tagih DM User Session 💬
 DM nagih via akun user (`TELEGRAM_STRING_SESSION`) ke member yg expired:
 ```bash
-venv/bin/python3 scripts/tagih-user-dm.py
+bash scripts/run-tagih-dm.sh
 ```
 - Counter field `billing.last_user_dm_date` — **1x/hari**, zero konflik dgn bot reminders.
 - Error `PeerIdInvalid` (akun dihapus/diblokir) dilewatin otomatis.
 - Cron tiap 1 jam di menit 0.
-### 8. Promosi Broadcast 🎯
+
+### 8. Cek Harga Emas 💰
+Cek harga emas Treasury & Antam terkini:
+```bash
+bash scripts/run-emas.sh
+```
+- Fetch dari API logam-mulia, banding harga sebelumnya.
+- Kirim hasil ke DM Owner via bot.
+- State & log di `logs/`.
+- Cron tiap 1 jam.
+
+### 9. Promosi Broadcast 🎯
 Kirim pesan promosi ke GROUP_PROMOSI otomatis:
 ```bash
-venv/bin/python3 scripts/promo.py
+bash scripts/run-promo.sh
 ```
 **Edit pesan promosi** gampang — tinggal ubah `scripts/promo.md`, gak perlu sentuh Python.
 
-### 9. Sinkronisasi Data (Sync-Check) 🔍
-
-### 7. Promosi Broadcast 🎯
-Kirim pesan promosi ke GROUP_PROMOSI otomatis:
-```bash
-venv/bin/python3 scripts/promo.py
-```
-**Edit pesan promosi** gampang — tinggal ubah `scripts/promo.md`, gak perlu sentuh Python.
-
-### 8. Sinkronisasi Data (Sync-Check) 🔍
-Pernah kepikiran, "Jangan-jangan ada orang di grup Telegram tapi datanya gak ada di DB?" Nah, skrip Python ini gunanya buat ngecek silang antara anggota asli di Telegram vs data di MongoDB.
+### 10. Sinkronisasi Data (Sync-Check) 🔍
+Pernah kepikiran, "Jangan-jangan ada orang di grup Telegram tapi datanya gak ada di DB?" Skrip ini ngecek silang anggota grup vs MongoDB.
 
 ```bash
-# Ingat, pakai environment Python yang udah dibikin
-venv/bin/python3 scripts/sync-check-user.py
+bash scripts/run-sync-user.sh
 ```
-Outputnya bakal ngasih tau lo:
+Outputnya:
 - Berapa orang yang datanya sinkron.
 - Siapa aja pendatang gelap (ada di grup tapi gak ada di DB).
-- Siapa aja yang udah "stopped" tapi ternyata masih asik nongkrong di grup.
-- Skip owner group, admin group dan bot dalam group, hanya users biasa.
+- Siapa aja yang udah "stopped" tapi masih nongkrong di grup.
+- Skip owner, admin, dan bot.
 
 ---
 
@@ -260,18 +266,16 @@ Kalau bot benar-benar gagal (misal gagal nge-kick), pesan errornya bakal dicetak
 
 1. **Aturan Renew:** Selalu hitung penambahan masa aktif dari `expire_date` di database, **bukan** dari tanggal hari ini.
 2. **Aturan Kick:** Eksekusi secara berurutan: Kick -> Kirim pengumuman -> Kirim `/u` (jika plan mengandung PrivateChatBot) -> Update status DB jadi `stopped`.
-3. **Eksekusi Sync-Check:** Harus selalu dipanggil menggunakan `venv/bin/python3` dari folder `drivecok-renewal/`.
+3. **Eksekusi Sync-Check:** Panggil via `bash scripts/run-sync-user.sh` dari folder `drivecok-renewal/`.
 4. **Error Telegram:** Cetak `error_code` dan `description` dengan detail — jangan diabaikan.
-5. **Semua perintah Node.js** wajib dijalankan dari direktori `drivecok-renewal/`:
+5. **Semua perintah** wajib dijalankan dari direktori `drivecok-renewal/`:
    ```bash
-   cd /home/mfa/.openclaw/workspace/drivecok-renewal
-   node scripts/<skrip>.mjs [args...]
+   cd /home/mohfa/.openclaw/workspace/drivecok-renewal
+   node scripts/<skrip>.mjs [args...]      # Node.js
+   bash scripts/run-<skrip>.sh              # Python (via shell wrapper)
+   python3 scripts/gen_session.py            # Khusus gen session aja
    ```
-6. **Skrip Python** wajib dijalankan dengan:
-   ```bash
-   cd /home/mfa/.openclaw/workspace/drivecok-renewal
-   venv/bin/python3 scripts/<skrip>.py
-   ```
+6. **Skrip Python** → pake `run-*.sh`, JANGAN panggil `venv/bin/python3` langsung (kecuali gen_session.py).
 7. **Jika ragu:** Tanya ke Ucok dulu. Jangan asal eksekusi.
 
 ---

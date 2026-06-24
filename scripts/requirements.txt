@@ -1,0 +1,4 @@
+aiohttp
+kurigram
+tgCrypto
+python-dotenv
