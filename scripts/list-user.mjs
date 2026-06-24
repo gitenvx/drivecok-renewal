@@ -2,7 +2,9 @@ import { loadMongoEnv } from './env.mjs';
 import { MongoClient } from 'mongodb';
 
 function fmt(u) {
-  return `${u.telegram_user_id || '?'} - ${u.name || '(no name)'} - ${u.expire_date || '—'}`;
+  let label = `${u.telegram_user_id || '?'} - ${u.name || '(no name)'} - ${u.expire_date || '—'}`;
+  if (u.plan === 'bot_tgfs') label += ` | ${u.bot_username || u.bot_id || '?'}`;
+  return label;
 }
 
 function getLocalToday() {
@@ -18,6 +20,7 @@ async function run() {
   const { uri, dbName, collectionName } = loadMongoEnv();
   const args = process.argv.slice(2);
   const specificUser = args[0];
+  const planFilter = args.find(a => a.startsWith('--plan='))?.split('=')[1] || null;
 
   const client = new MongoClient(uri);
   try {
@@ -39,11 +42,16 @@ async function run() {
       console.log(`   Plan: ${user.plan || '—'}`);
       console.log(`   Expire: ${user.expire_date || '—'}`);
       console.log(`   Status: ${user.status || '—'}`);
+      if (user.plan === 'bot_tgfs') {
+        console.log(`   BotID: ${user.bot_id || '—'}`);
+        console.log(`   BotUsername: ${user.bot_username || '—'}`);
+      }
       return;
     }
 
     // Mode: ringkasan
-    const users = await coll.find({}).toArray();
+    const query = planFilter ? { plan: planFilter } : {};
+    const users = await coll.find(query).toArray();
     if (!users.length) {
       console.log('📭 Tidak ada pelanggan.');
       return;

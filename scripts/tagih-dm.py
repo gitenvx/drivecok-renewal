@@ -42,7 +42,6 @@ async def send_owner_notif(bot_token, chat_id, text):
         log(f"⚠️ Bot notif failed: {e}")
     return False
 
-
 async def main():
     try:
         from dotenv import load_dotenv
@@ -60,7 +59,6 @@ async def main():
     coll_name = os.environ.get("MONGODB_COLLECTION")
     bot_token = os.environ.get("BOT_TOKEN")
     owner_id = os.environ.get("OWNER_ID")
-    group_ids_raw = os.environ.get("GROUP_CHAT_ID", "")
 
     missing = [k for k, v in [
         ("TELEGRAM_API_ID", api_id),
@@ -91,19 +89,45 @@ async def main():
     mongo = PyMongoClient(mongo_uri)
     coll = mongo[db_name][coll_name]
 
-    users = list(coll.find({
+    # Ambil user expired active — bedain yg bot_tgfs sama mirror
+    mirror_users = list(coll.find({
         "expire_date": {"$lte": today},
         "status": "active",
+        "plan": {"$ne": "bot_tgfs"},
     }))
 
-    if not users:
+    bot_tgfs_users = list(coll.find({
+        "expire_date": {"$lte": today},
+        "status": "active",
+        "plan": "bot_tgfs",
+    }))
+
+    total_expired = len(mirror_users) + len(bot_tgfs_users)
+
+    if not total_expired:
         msg = "✅ Gak ada user expired yg perlu ditagih lewat DM."
         log(msg)
         await send_owner_notif(bot_token, owner_id, msg)
         mongo.close()
         return
 
-    log(f"📋 Ditemukan {len(users)} user expired")
+    log(f"📋 Ditemukan {len(mirror_users)} mirror + {len(bot_tgfs_users)} bot_tgfs expired")
+
+    # Group bot_tgfs per customer biar 1 DM, bukan per bot
+    bot_by_customer = {}
+    for u in bot_tgfs_users:
+        uid = u["telegram_user_id"]
+        if uid not in bot_by_customer:
+            bot_by_customer[uid] = []
+        bot_by_customer[uid].append(u)
+
+    # Build queue: (uid, name, mirror_doc or None, bot_list or [])
+    user_queue = []
+    for u in mirror_users:
+        user_queue.append((u["telegram_user_id"], u.get("name", "User"), u, []))
+    for uid, bots in bot_by_customer.items():
+        first = bots[0]
+        user_queue.append((uid, first.get("name", "User"), None, bots))
 
     try:
         async with Client(
@@ -118,26 +142,38 @@ async def main():
             failed = 0
             fail_details = []
 
-            for u in users:
-                uid = u["telegram_user_id"]
-                name = u.get("name", "User")
-                expire = u.get("expire_date", "?")
-
-                # Cek field terpisah — udah di-DM hari ini?
-                last_dm = u.get("billing", {}).get("last_user_dm_date", "")
+            for uid, name, mirror_doc, bot_list in user_queue:
+                check_doc = mirror_doc if mirror_doc else bot_list[0]
+                last_dm = check_doc.get("billing", {}).get("last_user_dm_date", "")
                 if last_dm == today:
                     log(f"⏭️  {uid} — {name}: udah di-DM hari ini, skip")
                     skipped += 1
                     continue
 
-                msg = (
-                    f"Hello sodara {name}, "
-                    f"sekedar mengingatkan klok plan Drivecok Mirror sudah berakhir ({expire}), "
-                    f"mau perpanjang atau izin udahan dulu? "
-                    f"QRIS masih sama ya. "
-                    f"Terima kasih! "
-                    f"Semoga hari mu menyenangkan."
-                )
+                # Build message
+                if mirror_doc:
+                    expire = mirror_doc.get("expire_date", "?")
+                    msg = (
+                        f"Hello sodara {name}, "
+                        f"sekedar mengingatkan klok plan Drivecok Mirror sudah berakhir ({expire}), "
+                        f"mau perpanjang atau izin udahan dulu? "
+                        f"QRIS masih sama ya. "
+                        f"Terima kasih! "
+                        f"Semoga hari mu menyenangkan."
+                    )
+                else:
+                    bot_lines = []
+                    for b in bot_list:
+                        bexp = b.get("expire_date", "?")
+                        bbot = b.get("bot_username", b.get("bot_id", "?"))
+                        bot_lines.append(f"  \u2022 {bbot} (expired {bexp})")
+                    bot_str = "\n".join(bot_lines)
+                    msg = (
+                        f"Hello sodara {name}, sekedar mengingatkan bot kamu yang expired:\n"
+                        f"{bot_str}\n\n"
+                        f"Mau perpanjang? QRIS masih sama ya. "
+                        f"Terima kasih! Semoga hari mu menyenangkan."
+                    )
 
                 try:
                     await app.send_message(
@@ -147,10 +183,19 @@ async def main():
                         disable_web_page_preview=True,
                     )
                     log(f"✅ DM terkirim ke {uid} — {name}")
-                    coll.update_one(
-                        {"telegram_user_id": uid},
-                        {"$set": {"billing.last_user_dm_date": today}},
-                    )
+
+                    # Update last_user_dm_date untuk semua doc terkait
+                    if mirror_doc:
+                        coll.update_one(
+                            {"_id": mirror_doc["_id"]},
+                            {"$set": {"billing.last_user_dm_date": today}},
+                        )
+                    else:
+                        for b in bot_list:
+                            coll.update_one(
+                                {"_id": b["_id"]},
+                                {"$set": {"billing.last_user_dm_date": today}},
+                            )
                     sent += 1
 
                 except errors.FloodWait as e:

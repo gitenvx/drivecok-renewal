@@ -172,10 +172,11 @@ async function run() {
       await sendToOwner(`[${today}]\nℹ️ Counter reminder group sudah direset hari ini.`);
     }
 
-    // --- Cari pelanggan expired yg perlu reminder ---
+    // --- Cari pelanggan expired yg perlu reminder (exclude bot_tgfs — handling via user session) ---
     const pending = await customers.find({
       expire_date: { $lte: today },
       status: 'active',
+      plan: { $ne: 'bot_tgfs' },
       'billing.reminder_enabled': true,
       'billing.reminder_count_today': { $lt: MAX_REMINDERS_PER_DAY }
     }).toArray();
