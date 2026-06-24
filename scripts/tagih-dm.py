@@ -89,11 +89,11 @@ async def main():
     mongo = PyMongoClient(mongo_uri)
     coll = mongo[db_name][coll_name]
 
-    # Ambil user expired active — bedain yg bot_tgfs sama mirror
+    # === 3 kategori ===
     mirror_users = list(coll.find({
         "expire_date": {"$lte": today},
         "status": "active",
-        "plan": {"$ne": "bot_tgfs"},
+        "plan": {"$nin": ["bot_tgfs", "yt_premium"]},
     }))
 
     bot_tgfs_users = list(coll.find({
@@ -102,7 +102,13 @@ async def main():
         "plan": "bot_tgfs",
     }))
 
-    total_expired = len(mirror_users) + len(bot_tgfs_users)
+    yt_premium_users = list(coll.find({
+        "expire_date": {"$lte": today},
+        "status": "active",
+        "plan": "yt_premium",
+    }))
+
+    total_expired = len(mirror_users) + len(bot_tgfs_users) + len(yt_premium_users)
 
     if not total_expired:
         msg = "✅ Gak ada user expired yg perlu ditagih lewat DM."
@@ -111,23 +117,31 @@ async def main():
         mongo.close()
         return
 
-    log(f"📋 Ditemukan {len(mirror_users)} mirror + {len(bot_tgfs_users)} bot_tgfs expired")
+    log(f"📋 Ditemukan {len(mirror_users)} mirror + {len(bot_tgfs_users)} bot_tgfs + {len(yt_premium_users)} yt_premium expired")
 
-    # Group bot_tgfs per customer biar 1 DM, bukan per bot
-    bot_by_customer = {}
-    for u in bot_tgfs_users:
-        uid = u["telegram_user_id"]
-        if uid not in bot_by_customer:
-            bot_by_customer[uid] = []
-        bot_by_customer[uid].append(u)
+    # Group multi-doc plans per customer
+    def group_by_user(docs):
+        groups = {}
+        for d in docs:
+            uid = d["telegram_user_id"]
+            if uid not in groups:
+                groups[uid] = []
+            groups[uid].append(d)
+        return groups
 
-    # Build queue: (uid, name, mirror_doc or None, bot_list or [])
+    bot_groups = group_by_user(bot_tgfs_users)
+    yt_groups = group_by_user(yt_premium_users)
+
+    # Build queue: (uid, name, mirror_doc/None, bot_list/[], yt_list/[])
     user_queue = []
     for u in mirror_users:
-        user_queue.append((u["telegram_user_id"], u.get("name", "User"), u, []))
-    for uid, bots in bot_by_customer.items():
+        user_queue.append((u["telegram_user_id"], u.get("name", "User"), u, [], []))
+    for uid, bots in bot_groups.items():
         first = bots[0]
-        user_queue.append((uid, first.get("name", "User"), None, bots))
+        user_queue.append((uid, first.get("name", "User"), None, bots, []))
+    for uid, yts in yt_groups.items():
+        first = yts[0]
+        user_queue.append((uid, first.get("name", "User"), None, [], yts))
 
     try:
         async with Client(
@@ -142,8 +156,8 @@ async def main():
             failed = 0
             fail_details = []
 
-            for uid, name, mirror_doc, bot_list in user_queue:
-                check_doc = mirror_doc if mirror_doc else bot_list[0]
+            for uid, name, mirror_doc, bot_list, yt_list in user_queue:
+                check_doc = mirror_doc or (bot_list[0] if bot_list else yt_list[0])
                 last_dm = check_doc.get("billing", {}).get("last_user_dm_date", "")
                 if last_dm == today:
                     log(f"⏭️  {uid} — {name}: udah di-DM hari ini, skip")
@@ -161,18 +175,31 @@ async def main():
                         f"Terima kasih! "
                         f"Semoga hari mu menyenangkan."
                     )
-                else:
-                    bot_lines = []
+                elif bot_list:
+                    lines = []
                     for b in bot_list:
                         bexp = b.get("expire_date", "?")
                         bbot = b.get("bot_username", b.get("bot_id", "?"))
-                        bot_lines.append(f"  \u2022 {bbot} (expired {bexp})")
-                    bot_str = "\n".join(bot_lines)
+                        lines.append(f"  \u2022 {bbot} (expired {bexp})")
                     msg = (
                         f"Hello sodara {name}, sekedar mengingatkan bot kamu yang expired:\n"
-                        f"{bot_str}\n\n"
-                        f"Mau perpanjang? QRIS masih sama ya. "
-                        f"Terima kasih! Semoga hari mu menyenangkan."
+                        + "\n".join(lines) +
+                        "\n\nMau perpanjang? QRIS masih sama ya. "
+                        "Terima kasih! Semoga hari mu menyenangkan."
+                    )
+                elif yt_list:
+                    lines = []
+                    for y in yt_list:
+                        bexp = y.get("expire_date", "?")
+                        bgmail = y.get("gmail", "?")
+                        username = y.get("username", "?")
+                        uid_str = y.get("telegram_user_id", "?")
+                        lines.append(f"  \u2022 {bgmail} (expired {bexp})")
+                    msg = (
+                        f"Hello {name} - {username} ({uid_str}), "
+                        f"sekedar mengingatkan klok langganan YT Premium udah abis:\n"
+                        + "\n".join(lines) +
+                        "\n\nAyo gas renewal, QRIS yg sama ya, atau mau izin off ?"
                     )
 
                 try:
@@ -185,17 +212,17 @@ async def main():
                     log(f"✅ DM terkirim ke {uid} — {name}")
 
                     # Update last_user_dm_date untuk semua doc terkait
+                    docs_to_update = []
                     if mirror_doc:
+                        docs_to_update.append(mirror_doc)
+                    else:
+                        docs_to_update.extend(bot_list)
+                        docs_to_update.extend(yt_list)
+                    for d in docs_to_update:
                         coll.update_one(
-                            {"_id": mirror_doc["_id"]},
+                            {"_id": d["_id"]},
                             {"$set": {"billing.last_user_dm_date": today}},
                         )
-                    else:
-                        for b in bot_list:
-                            coll.update_one(
-                                {"_id": b["_id"]},
-                                {"$set": {"billing.last_user_dm_date": today}},
-                            )
                     sent += 1
 
                 except errors.FloodWait as e:

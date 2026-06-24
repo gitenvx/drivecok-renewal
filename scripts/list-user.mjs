@@ -48,6 +48,9 @@ async function run() {
           console.log(`   BotID: ${user.bot_id || '—'}`);
           console.log(`   BotUsername: ${user.bot_username || '—'}`);
         }
+        if (user.plan === 'yt_premium') {
+          console.log(`   Gmail: ${user.gmail || '—'}`);
+        }
         console.log('');
       }
       return;

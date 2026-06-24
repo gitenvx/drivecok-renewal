@@ -176,7 +176,7 @@ async function run() {
     const pending = await customers.find({
       expire_date: { $lte: today },
       status: 'active',
-      plan: { $ne: 'bot_tgfs' },
+      plan: { $nin: ['bot_tgfs', 'yt_premium'] },
       'billing.reminder_enabled': true,
       'billing.reminder_count_today': { $lt: MAX_REMINDERS_PER_DAY }
     }).toArray();
