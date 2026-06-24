@@ -25,15 +25,19 @@ drivecok-renewal/
     list-user.mjs       List active/expired/stopped customers
     renew-user.mjs         Extend subscription
     reminders-user.mjs      Auto-remind expiring users (cron) — kirim log + recap ke DM Owner & Grup
-    tagih-user-dm.py        DM nagih via user session ke member expired (cron)
-    import-user.mjs   Bulk import from JSON
-    env.mjs                .env config loader
-    sync-check-user.py          Compare Telegram members vs DB
-    gen_session.py             Generate Telegram string session
-    promo.py               Kirim promo ke GROUP_PROMOSI via user session (cron)
-    promo.md               Isi pesan promosi — diedit langsung tanpa sentuh Python
+    tagih-dm.py             DM nagih via user session ke member expired (via run-tagih-dm.sh)
+    sync-user.py            Sync DB vs Telegram group members (via run-sync-user.sh)
+    emas.py                 Cek harga emas Treasury/Antam (via run-emas.sh)
+    gen_session.py          Generate Telegram string session — langsung `python3 gen_session.py`
+    promo.py                Kirim promo ke GROUP_PROMOSI (via run-promo.sh)
+    promo.md                Isi promosi — edit langsung
+    run-emas.sh             Shell wrapper: emas.py
+    run-promo.sh             Shell wrapper: promo.py
+    run-sync-user.sh         Shell wrapper: sync-user.py
+    run-tagih-dm.sh          Shell wrapper: tagih-dm.py
+    requirements.txt        Python deps (aiohttp, kurigram, tgcrypto, python-dotenv)
   users/            ← JSON import samples
-  venv/             ← Python virtual env (Pyrofork)
+  venv/             ← Python virtual env
 ```
 
 ## DB Schema (Collection: `customers`)
@@ -68,17 +72,19 @@ drivecok-renewal/
 2. **Default renew = +1 month.** Execute immediately without asking.
 3. **Plan names:** Jika user disebut "PrivateChatBot" → pakai `Group_PrivateChatBot`. Default = `Group`.
 4. **Kick flow:** Kick from group → send announcement → send `/u <user_id>` to bot if plan contains `PrivateChatBot` → set DB status to `stopped`.
-5. **Python** via `venv/bin/python3` (Linux/WSL path).
-6. **Reminders (Bot):** Only send if `expire_date` is today or past, and `reminder_count_today < 2`. Max 2x/day.
-   - Log & recap langsung dikirim ke DM Owner + Grup via Bot.
+5. **Python** → `bash scripts/run-<skrip>.sh`. JANGAN `venv/bin/python3` langsung (kecuali gen_session.py).
+6. **Node.js** → `node scripts/<skrip>.mjs`.
+7. **Reminders (Bot):** Hanya kirim jika `expire_date` hari ini/sudah lewat dan `reminder_count_today < 2`. Max 2x/hari.
+   - Langsung `node scripts/reminders-user.mjs` (cron).
    - Cron tiap 1 jam (menit 2), log ke `logs/cron-reminders.log`.
-
-   **Tagih DM (User Session):** DM nagih via `TELEGRAM_STRING_SESSION` ke member expired.
+8. **Tagih DM (User Session):** DM nagih via `TELEGRAM_STRING_SESSION` ke member expired.
    - 1x/hari via field `billing.last_user_dm_date` (terpisah dari counter bot — zero konflik).
-   - Cron tiap 1 jam (menit 0), log ke `logs/cron-reminders.log`.
-8. **Promo content**: Edit `scripts/promo.md` — script Python tinggal baca dari file.
-9. **Error handling:** If Telegram API returns 400/403/404, report code + description. Don't ignore.
-10. **Default expire_date** when adding user without date = 1 month from today (or specific join date if Ucok mentions).
+   - Cron tiap 1 jam (menit 0) via `bash scripts/run-tagih-dm.sh`.
+   - Log ke `logs/cron-reminders.log`.
+9. **Cek Harga Emas:** `bash scripts/run-emas.sh`. Fetch API logam-mulia, kirim ke DM Owner. Cron tiap 1 jam. State di `logs/emas-state.json`.
+9. **Promo content:** Edit `scripts/promo.md` — script Python tinggal baca dari file.
+10. **Error handling:** If Telegram API returns 400/403/404, report code + description. Don't ignore.
+11. **Default expire_date** when adding user without date = 1 month from today (or specific join date if Ucok mentions).
 
 ## Command Reference
 
@@ -95,11 +101,12 @@ drivecok-renewal/
 ### Automation & Tools
 | Command | Description |
 |---------|-------------|
-| `npm run reminders` (or `node --dns-result-order=ipv4first scripts/reminders-user.mjs`) | Send expiry reminders — kirim log + recap ke DM Owner & Grup (cron) |
-| `venv/bin/python3 scripts/tagih-user-dm.py` | DM nagih ke member expired via user session (cron) |
-| `venv/bin/python3 scripts/sync-check-user.py` | Sync DB vs Telegram group members |
-| `venv/bin/python3 scripts/gen_session.py` | Generate Telegram string session |
-| `venv/bin/python3 scripts/promo.py` | Send promo to GROUP_PROMOSI (content from promo.md) |
+| `node scripts/reminders-user.mjs` | Reminders + recap ke DM Owner & Grup (cron tiap 1 jam) |
+| `bash scripts/run-tagih-dm.sh` | DM nagih ke member expired via user session (cron) |
+| `bash scripts/run-sync-user.sh` | Sync DB vs Telegram group members |
+| `python3 scripts/gen_session.py` | Generate Telegram string session |
+| `bash scripts/run-promo.sh` | Send promo to GROUP_PROMOSI (content from promo.md) |
+| `bash scripts/run-emas.sh` | Cek harga emas Treasury & Antam (cron tiap 1 jam) |
 
 ## Related Docs
 
@@ -112,6 +119,6 @@ drivecok-renewal/
 1. **Act autonomously.** If Ucok gives clear instruction ("renew user 12345"), execute directly. Don't reply "OK I will".
 2. **Stay in project root.** All commands run from `drivecok-renewal/`.
 3. **Only ask confirmation** if parameters are truly ambiguous (e.g. plan unclear when adding user).
-4. **OS awareness:** Always use `venv/bin/python3`, not Windows paths.
-5. **🚨 NO auto-push to GitHub.** Stage & commit only. Ucok must review and push himself.
-6. **🚨 Always ask before creating new files.** Don't create new scripts or files without Ucok's approval.
+4. **OS awareness:** Linux/WSL. Python via `bash scripts/run-*.sh`, bukan Windows path.
+5. **🚨 NO auto-push to GitHub.** Stage & commit only. Ucok reviews before push.
+6. **🚨 Always ask before creating new files.** Don't create new scripts or files without approval.
