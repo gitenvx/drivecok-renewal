@@ -55,7 +55,7 @@ npm install
 ```
 
 ### 2. Setup Python (Untuk Fitur Sync & Session)
-Skrip `sync-check-user.py` dan `gen_session.py` jalan pakai Python (Pyrogram). Biar rapi, gue bikin *virtual environment*:
+Skrip `sync-user.py` dan `gen_session.py` jalan pakai Python (Pyrogram). Biar rapi, gue bikin *virtual environment*:
 ```bash
 # Bikin virtual environment
 python3 -m venv venv
@@ -105,7 +105,7 @@ TELEGRAM_STRING_SESSION="...string_gen_session.pyrogram_lo..."
 - `OWNER_ID`: ID Telegram lo — reminder & log akan dikirim ke DM ini via Bot.
 - `BOT_TOKEN`: Token bot lo (dapat dari BotFather).
 - `TELEGRAM_API_ID` & `TELEGRAM_API_HASH`: Ambil dari my.telegram.org. Ini wajib buat login *user session*.
-- `TELEGRAM_STRING_SESSION`: Sesi login akun lo via Pyrogram biar skrip bisa baca daftar member grup layaknya akun beneran (kepakai buat `sync-check-user.py`).
+- `TELEGRAM_STRING_SESSION`: Sesi login akun lo via Pyrogram biar skrip bisa baca daftar member grup layaknya akun beneran (dipakai buat `sync-user.py`).
 
 ---
 
