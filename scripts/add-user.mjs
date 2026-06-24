@@ -29,13 +29,24 @@ async function run() {
   const db = client.db(dbName);
   const coll = db.collection(collectionName);
 
-  const existing = await coll.findOne({ telegram_user_id });
-  if (existing) {
-    console.log(`⚠️  User ${telegram_user_id} sudah ada di database.`);
-    console.log(`   Nama: ${existing.name}, Expire: ${existing.expire_date}`);
-    console.log('   Gunakan scripts/renew-user.mjs untuk renew.');
-    await client.close();
-    return;
+  if (plan === 'bot_tgfs') {
+    // bot_tgfs: cek duplicate bot_id, bukan user_id — 1 user bisa punya banyak bot
+    const dup = await coll.findOne({ plan: 'bot_tgfs', bot_id });
+    if (dup) {
+      console.log(`⚠️  Bot ID "${bot_id}" sudah terdaftar untuk ${dup.name} (${dup.telegram_user_id}).`);
+      await client.close();
+      return;
+    }
+  } else {
+    // plan lain: 1 user_id = 1 doc (existing logic)
+    const existing = await coll.findOne({ telegram_user_id });
+    if (existing) {
+      console.log(`⚠️  User ${telegram_user_id} sudah ada di database.`);
+      console.log(`   Nama: ${existing.name}, Expire: ${existing.expire_date}`);
+      console.log('   Gunakan scripts/renew-user.mjs untuk renew.');
+      await client.close();
+      return;
+    }
   }
 
   const doc = {

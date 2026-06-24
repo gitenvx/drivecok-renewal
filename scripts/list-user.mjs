@@ -30,21 +30,25 @@ async function run() {
 
     // Mode: cek user spesifik
     if (specificUser) {
-      const user = await coll.findOne({ telegram_user_id: specificUser });
-      if (!user) {
+      const users = await coll.find({ telegram_user_id: specificUser }).toArray();
+      if (!users.length) {
         console.log(`❌ User ${specificUser} tidak ditemukan.`);
         return;
       }
-      console.log(`━━━ DETAIL USER ━━━`);
-      console.log(`   ID: ${user.telegram_user_id}`);
-      console.log(`   Nama: ${user.name || '(no name)'}`);
-      console.log(`   Username: ${user.username || '—'}`);
-      console.log(`   Plan: ${user.plan || '—'}`);
-      console.log(`   Expire: ${user.expire_date || '—'}`);
-      console.log(`   Status: ${user.status || '—'}`);
-      if (user.plan === 'bot_tgfs') {
-        console.log(`   BotID: ${user.bot_id || '—'}`);
-        console.log(`   BotUsername: ${user.bot_username || '—'}`);
+
+      for (const user of users) {
+        console.log(`━━━ DETAIL USER ━━━`);
+        console.log(`   ID: ${user.telegram_user_id}`);
+        console.log(`   Nama: ${user.name || '(no name)'}`);
+        console.log(`   Username: ${user.username || '—'}`);
+        console.log(`   Plan: ${user.plan || '—'}`);
+        console.log(`   Expire: ${user.expire_date || '—'}`);
+        console.log(`   Status: ${user.status || '—'}`);
+        if (user.plan === 'bot_tgfs') {
+          console.log(`   BotID: ${user.bot_id || '—'}`);
+          console.log(`   BotUsername: ${user.bot_username || '—'}`);
+        }
+        console.log('');
       }
       return;
     }
