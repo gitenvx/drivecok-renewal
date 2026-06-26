@@ -151,6 +151,11 @@ async def main():
             session_string=session_str,
             in_memory=True,
         ) as app:
+            # Warmup peer cache — populate access_hash buat resolve user ID
+            log("☕ Warmup peer cache via get_dialogs...")
+            async for _ in app.get_dialogs():
+                pass
+
             sent = 0
             skipped = 0
             failed = 0
@@ -207,7 +212,7 @@ async def main():
                         chat_id=int(uid),
                         text=msg,
                         parse_mode=enums.ParseMode.MARKDOWN,
-                        disable_web_page_preview=True,
+                        link_preview_options={"is_disabled": True},
                     )
                     log(f"✅ DM terkirim ke {uid} — {name}")
 
@@ -232,9 +237,62 @@ async def main():
                     fail_details.append(f"{uid} — {name}: FloodWait {e.value}s")
 
                 except errors.PeerIdInvalid:
-                    log(f"⚠️ {uid} — {name}: PeerIdInvalid (akun dihapus/diblokir), skip")
-                    failed += 1
-                    fail_details.append(f"{uid} — {name}: PeerIdInvalid (akun invalid)")
+                    # Coba fallback: resolve via username kalo ada di DB
+                    resolved = False
+                    username = None
+                    if check_doc.get("username"):
+                        username = check_doc["username"].lstrip("@")
+                    elif check_doc.get("tg_username"):
+                        username = check_doc["tg_username"].lstrip("@")
+
+                    if username:
+                        try:
+                            await app.send_message(
+                                chat_id=f"@{username}",
+                                text=msg,
+                                parse_mode=enums.ParseMode.MARKDOWN,
+                                link_preview_options={"is_disabled": True},
+                            )
+                            log(f"✅ DM terkirim via username @{username} ke {uid} — {name}")
+                            resolved = True
+                        except Exception:
+                            pass
+
+                    if not resolved:
+                        # Coba get_users — trigger access_hash fetch
+                        try:
+                            usr = await app.get_users(int(uid))
+                            await app.send_message(
+                                chat_id=usr.id,
+                                text=msg,
+                                parse_mode=enums.ParseMode.MARKDOWN,
+                                link_preview_options={"is_disabled": True},
+                            )
+                            log(f"✅ DM terkirim via get_users ke {uid} — {name}")
+                            resolved = True
+                        except Exception:
+                            pass
+
+                    if resolved:
+                        sent += 1
+                        docs_to_update = []
+                        if mirror_doc:
+                            docs_to_update.append(mirror_doc)
+                        else:
+                            docs_to_update.extend(bot_list)
+                            docs_to_update.extend(yt_list)
+                        for d in docs_to_update:
+                            coll.update_one(
+                                {"_id": d["_id"]},
+                                {"$set": {"billing.last_user_dm_date": today}},
+                            )
+                    else:
+                        reason = "akun dihapus/diblokir/tidak pernah DM"
+                        if username:
+                            reason += f" (username @{username} exist di DB tp gak resolve)"
+                        log(f"⚠️ {uid} — {name}: PeerIdInvalid ({reason}), skip")
+                        failed += 1
+                        fail_details.append(f"{uid} — {name}: PeerIdInvalid ({reason})")
 
                 except errors.RPCError as e:
                     log(f"⚠️ RPCError DM {uid} — {name}: {e}")
