@@ -122,3 +122,8 @@ drivecok-renewal/
 4. **OS awareness:** Linux/WSL. Python via `bash scripts/run-*.sh`, bukan Windows path.
 5. **🚨 NO auto-push to GitHub.** Stage & commit only. Ucok reviews before push.
 6. **🚨 Always ask before creating new files.** Don't create new scripts or files without approval.
+
+## Safe Development & Git Workflow
+- **No Destructive Commands Without Backup**: Jangan pernah menjalankan perintah git destruktif (seperti `git restore`, `git checkout`, `git reset --hard`) atau melakukan operasi yang menimpa file lokal yang memiliki perubahan belum di-commit/push tanpa:
+  1. Meminta persetujuan eksplisit dari pengguna terlebih dahulu.
+  2. Membuat salinan cadangan (backup) lokal dari berkas target terlebih dahulu (misal disalin sebagai berkas `.bak` di dalam ruang kerja) sebelum menjalankan perintah tersebut.
