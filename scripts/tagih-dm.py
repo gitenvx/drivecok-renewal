@@ -317,13 +317,22 @@ async def main():
             recap = f"📊 Selesai tagih DM: {sent} terkirim, {skipped} skip, {failed} gagal."
             log(recap)
 
-            if fail_details and bot_token and owner_id:
-                detail_text = "\n".join(fail_details[:10])
-                success_details_text = "\n".join(success_details[:10])
-                await send_owner_notif(
-                    bot_token, owner_id,
-                    f"⚠️ *Tagih DM — Gagal*\n{recap}\n\n{success_details_text}\n\n{detail_text}"
-                )
+            if not bot_token or not owner_id:
+                return
+
+            # Bangun 2 blok: sukses & gagal terpisah
+            parts = [f"*📊 Hasil Tagih DM*\n{recap}"]
+
+            if sent > 0 and success_details:
+                success_list = "\n".join(success_details[:10])
+                parts.append(f"\n*✅ Sukses ({sent})*\n```\n{success_list}\n```")
+
+            if fail_details:
+                detail_list = "\n".join(fail_details[:10])
+                parts.append(f"\n*⚠️ Gagal ({failed})*\n```\n{detail_list}\n```")
+
+            if len(parts) > 1:
+                await send_owner_notif(bot_token, owner_id, "\n".join(parts))
 
     except Exception as e:
         log(f"⚠️ Fatal error: {e}")
