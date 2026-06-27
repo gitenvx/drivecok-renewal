@@ -73,9 +73,11 @@ async def main():
 
     try:
         from pyrogram import Client, enums, errors
+        from pyrogram.types import LinkPreviewOptions
     except ImportError:
         os.system("pip install --no-cache-dir kurigram pymongo tgcrypto python-dotenv -q")
         from pyrogram import Client, enums, errors
+        from pyrogram.types import LinkPreviewOptions
 
     try:
         from pymongo import MongoClient as PyMongoClient
@@ -111,7 +113,7 @@ async def main():
     total_expired = len(mirror_users) + len(bot_tgfs_users) + len(yt_premium_users)
 
     if not total_expired:
-        msg = "✅ Gak ada user expired yg perlu ditagih lewat DM."
+        msg = "✅ Gak ada pelanggan expired yg perlu ditagih lewat DM."
         log(msg)
         await send_owner_notif(bot_token, owner_id, msg)
         mongo.close()
@@ -160,6 +162,7 @@ async def main():
             skipped = 0
             failed = 0
             fail_details = []
+            success_details = []
 
             for uid, name, mirror_doc, bot_list, yt_list in user_queue:
                 check_doc = mirror_doc or (bot_list[0] if bot_list else yt_list[0])
@@ -172,8 +175,10 @@ async def main():
                 # Build message
                 if mirror_doc:
                     expire = mirror_doc.get("expire_date", "?")
+                    username = mirror_doc.get("username", "?")
+                    uid_str = mirror_doc.get("telegram_user_id", "?")
                     msg = (
-                        f"Hello sodara {name}, "
+                        f"Hello sodara {name} - {username} (`{uid_str}`), "
                         f"sekedar mengingatkan klok plan Drivecok Mirror sudah berakhir ({expire}), "
                         f"mau perpanjang atau izin udahan dulu? "
                         f"QRIS masih sama ya. "
@@ -183,11 +188,13 @@ async def main():
                 elif bot_list:
                     lines = []
                     for b in bot_list:
+                        username = b.get("username", "?")
+                        uid_str = b.get("telegram_user_id", "?")
                         bexp = b.get("expire_date", "?")
                         bbot = b.get("bot_username", b.get("bot_id", "?"))
                         lines.append(f"  \u2022 {bbot} (expired {bexp})")
                     msg = (
-                        f"Hello sodara {name}, sekedar mengingatkan bot kamu yang expired:\n"
+                        f"Hello sodara {name} - {username} (`{uid_str}`), sekedar mengingatkan bot kamu yang expired:\n"
                         + "\n".join(lines) +
                         "\n\nMau perpanjang? QRIS masih sama ya. "
                         "Terima kasih! Semoga hari mu menyenangkan."
@@ -201,7 +208,7 @@ async def main():
                         uid_str = y.get("telegram_user_id", "?")
                         lines.append(f"  \u2022 {bgmail} (expired {bexp})")
                     msg = (
-                        f"Hello {name} - {username} ({uid_str}), "
+                        f"Hello sodara {name} - {username} (`{uid_str}`), "
                         f"sekedar mengingatkan klok langganan YT Premium udah abis:\n"
                         + "\n".join(lines) +
                         "\n\nAyo gas renewal, QRIS yg sama ya, atau mau izin off ?"
@@ -212,8 +219,9 @@ async def main():
                         chat_id=int(uid),
                         text=msg,
                         parse_mode=enums.ParseMode.MARKDOWN,
-                        link_preview_options={"is_disabled": True},
+                        link_preview_options=LinkPreviewOptions(is_disabled=True),
                     )
+                    success_details.append(f"{uid} — {name}")
                     log(f"✅ DM terkirim ke {uid} — {name}")
 
                     # Update last_user_dm_date untuk semua doc terkait
@@ -251,7 +259,7 @@ async def main():
                                 chat_id=f"@{username}",
                                 text=msg,
                                 parse_mode=enums.ParseMode.MARKDOWN,
-                                link_preview_options={"is_disabled": True},
+                                link_preview_options=LinkPreviewOptions(is_disabled=True),
                             )
                             log(f"✅ DM terkirim via username @{username} ke {uid} — {name}")
                             resolved = True
@@ -266,7 +274,7 @@ async def main():
                                 chat_id=usr.id,
                                 text=msg,
                                 parse_mode=enums.ParseMode.MARKDOWN,
-                                link_preview_options={"is_disabled": True},
+                                link_preview_options=LinkPreviewOptions(is_disabled=True),
                             )
                             log(f"✅ DM terkirim via get_users ke {uid} — {name}")
                             resolved = True
@@ -306,14 +314,15 @@ async def main():
 
                 await asyncio.sleep(3)
 
-            recap = f"📊 Selesai tagih DM: {sent} terkirim, {skipped} skip, {failed} gagal"
+            recap = f"📊 Selesai tagih DM: {sent} terkirim, {skipped} skip, {failed} gagal."
             log(recap)
 
             if fail_details and bot_token and owner_id:
                 detail_text = "\n".join(fail_details[:10])
+                success_details_text = "\n".join(success_details[:10])
                 await send_owner_notif(
                     bot_token, owner_id,
-                    f"⚠️ *Tagih DM — Gagal*\n{recap}\n\n{detail_text}"
+                    f"⚠️ *Tagih DM — Gagal*\n{recap}\n\n{success_details_text}\n\n{detail_text}"
                 )
 
     except Exception as e:
